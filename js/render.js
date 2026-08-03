@@ -1,8 +1,7 @@
 // =========================================================
 // render.js
-// Todo lo que genera HTML y controla qué pantalla se ve.
-// No hace peticiones a la API directamente: recibe datos ya
-// resueltos (de state.js) o delega en app.js/modals.js.
+// Todo lo que genera HTML y controla qué pantalla se ve
+// para el módulo de CONTRATOS.
 // =========================================================
 
 const tarjetasExpandidas = new Set();
@@ -26,14 +25,10 @@ const ETIQUETA_ESTATUS = {
   completado: 'Completado'
 };
 
-// ---------- Pantallas ----------
-
 function mostrarPantalla(id) {
   document.querySelectorAll('.pantalla').forEach(p => p.classList.remove('activa'));
   document.getElementById(id).classList.add('activa');
 }
-
-// ---------- Aviso flotante ----------
 
 let avisoTimeout;
 function mostrarAviso(texto, esError = false) {
@@ -44,8 +39,6 @@ function mostrarAviso(texto, esError = false) {
   clearTimeout(avisoTimeout);
   avisoTimeout = setTimeout(() => aviso.classList.remove('visible'), esError ? 4000 : 2200);
 }
-
-// ---------- Listado de contratos (inicio): tarjetas expandibles ----------
 
 async function renderListadoContratos() {
   const contenedor = document.getElementById('lista-contratos');

@@ -1,13 +1,6 @@
 // =========================================================
 // contratos.routes.js
 // CRUD completo de contratos / oficios / facturas.
-// Todas las rutas requieren sesión (JWT) — ver auth.js.
-//
-// El "monto total" y el "saldo/avance" NUNCA se calculan ni
-// se guardan aquí: el backend solo entrega los datos crudos
-// (oficios y facturas) y el cliente los deriva, igual que
-// hacía el mock en memoria. Así se evita que un cálculo del
-// servidor se desincronice del que ve el usuario.
 // =========================================================
 
 const express = require('express');
@@ -16,8 +9,6 @@ const db = require('../db');
 const { requiereAutenticacion } = require('../middleware/auth');
 
 router.use(requiereAutenticacion);
-
-// ---------- Helpers: fila de BD -> JSON para el frontend ----------
 
 function oficioAJson(row) {
   return { id: row.id, tipo: row.tipo, folio: row.folio, monto: Number(row.monto), fecha: row.fecha };
@@ -67,8 +58,6 @@ async function cargarContratoCompleto(id) {
   return contratoAJson(contratoRows[0], oficios, facturas);
 }
 
-// ---------- Listar todos los contratos ----------
-
 router.get('/', async (req, res) => {
   try {
     const { rows: contratos } = await db.query('SELECT * FROM contratos ORDER BY id DESC');
@@ -86,8 +75,6 @@ router.get('/', async (req, res) => {
     res.status(500).json({ ok: false, mensaje: 'Error al listar contratos' });
   }
 });
-
-// ---------- Crear contrato (captura del oficio inicial) ----------
 
 router.post('/', async (req, res) => {
   const { folioOficio, montoOficio, fechaOficio } = req.body;
@@ -117,8 +104,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ---------- Datos generales (registrar o editar) ----------
-
 router.put('/:id/datos-generales', async (req, res) => {
   const id = Number(req.params.id);
   const {
@@ -144,8 +129,6 @@ router.put('/:id/datos-generales', async (req, res) => {
     res.status(500).json({ ok: false, mensaje: 'Error al guardar los datos generales' });
   }
 });
-
-// ---------- Oficios (ampliación / cancelación) ----------
 
 router.post('/:id/oficios', async (req, res) => {
   const id = Number(req.params.id);
@@ -181,8 +164,6 @@ router.delete('/:id/oficios/:oficioId', async (req, res) => {
     res.status(500).json({ ok: false, mensaje: 'Error al eliminar el oficio' });
   }
 });
-
-// ---------- Facturas por periodo ----------
 
 router.post('/:id/facturas', async (req, res) => {
   const id = Number(req.params.id);
@@ -242,8 +223,6 @@ router.delete('/:id/facturas/:facturaId', async (req, res) => {
     res.status(500).json({ ok: false, mensaje: 'Error al eliminar la factura' });
   }
 });
-
-// ---------- Completar / eliminar contrato ----------
 
 router.put('/:id/completar', async (req, res) => {
   const id = Number(req.params.id);

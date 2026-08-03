@@ -1,13 +1,9 @@
 // =========================================================
-// data.js
-// Capa de datos. Ahora habla con la API real (Render + Neon)
-// vía fetch(). app.js sigue llamando a "Store.metodo(...)"
-// exactamente igual que antes; la única diferencia es que
-// cada método ahora es async y hay que usar await/.then().
-//
-// El monto total y el saldo/avance del contrato NUNCA vienen
-// del servidor: se calculan aquí mismo a partir de los
-// oficios y facturas crudos, igual que en el mock anterior.
+// state.js
+// Capa de datos de CONTRATOS. Habla con la API real vía
+// fetch(). El monto total y el saldo/avance NUNCA vienen del
+// servidor: se calculan aquí a partir de los oficios y
+// facturas crudos.
 // =========================================================
 
 const NOMBRE_PERIODO = { mensual: 'mes', bimestral: 'bimestre', trimestral: 'trimestre' };
@@ -57,7 +53,7 @@ function recalcularSaldos(contrato) {
   contrato.saldoActual = saldoAcumulado;
 }
 
-// ---------- Sesión ----------
+// ---------- Sesión (compartida con Pedidos) ----------
 
 let tokenSesion = localStorage.getItem('contratos_token') || null;
 let usuarioSesion = localStorage.getItem('contratos_usuario') || null;
@@ -76,8 +72,6 @@ function limpiarSesion() {
   localStorage.removeItem('contratos_usuario');
 }
 
-// ---------- Cliente HTTP ----------
-
 async function peticion(ruta, opciones = {}) {
   const encabezados = { 'Content-Type': 'application/json', ...(opciones.headers || {}) };
   if (tokenSesion) encabezados.Authorization = `Bearer ${tokenSesion}`;
@@ -90,7 +84,7 @@ async function peticion(ruta, opciones = {}) {
   }
 
   let datos = {};
-  try { datos = await respuesta.json(); } catch (error) { /* respuesta sin cuerpo, ej. 204 */ }
+  try { datos = await respuesta.json(); } catch (error) { /* respuesta sin cuerpo */ }
 
   if (respuesta.status === 401) {
     limpiarSesion();
@@ -103,26 +97,16 @@ async function peticion(ruta, opciones = {}) {
 }
 
 const Store = {
-  haySesionGuardada() {
-    return !!tokenSesion;
-  },
-
-  usuarioActual() {
-    return usuarioSesion;
-  },
+  haySesionGuardada() { return !!tokenSesion; },
+  usuarioActual() { return usuarioSesion; },
 
   async login(usuario, password) {
-    const datos = await peticion('/login', {
-      method: 'POST',
-      body: JSON.stringify({ usuario, password })
-    });
+    const datos = await peticion('/login', { method: 'POST', body: JSON.stringify({ usuario, password }) });
     guardarSesion(datos.token, datos.usuario);
     return true;
   },
 
-  cerrarSesion() {
-    limpiarSesion();
-  },
+  cerrarSesion() { limpiarSesion(); },
 
   async listarContratos() {
     const datos = await peticion('/contratos');
@@ -131,28 +115,19 @@ const Store = {
   },
 
   async crearContratoInicial({ folioOficio, montoOficio, fechaOficio }) {
-    const datos = await peticion('/contratos', {
-      method: 'POST',
-      body: JSON.stringify({ folioOficio, montoOficio, fechaOficio })
-    });
+    const datos = await peticion('/contratos', { method: 'POST', body: JSON.stringify({ folioOficio, montoOficio, fechaOficio }) });
     recalcularSaldos(datos.contrato);
     return datos.contrato;
   },
 
   async guardarDatosGenerales(contratoId, datosGenerales) {
-    const datos = await peticion(`/contratos/${contratoId}/datos-generales`, {
-      method: 'PUT',
-      body: JSON.stringify(datosGenerales)
-    });
+    const datos = await peticion(`/contratos/${contratoId}/datos-generales`, { method: 'PUT', body: JSON.stringify(datosGenerales) });
     recalcularSaldos(datos.contrato);
     return datos.contrato;
   },
 
   async agregarOficio(contratoId, { tipo, folio, monto, fecha }) {
-    const datos = await peticion(`/contratos/${contratoId}/oficios`, {
-      method: 'POST',
-      body: JSON.stringify({ tipo, folio, monto, fecha })
-    });
+    const datos = await peticion(`/contratos/${contratoId}/oficios`, { method: 'POST', body: JSON.stringify({ tipo, folio, monto, fecha }) });
     recalcularSaldos(datos.contrato);
     return datos.contrato;
   },
@@ -166,22 +141,14 @@ const Store = {
   async registrarFactura(contratoId, periodo, datosFactura) {
     const datos = await peticion(`/contratos/${contratoId}/facturas`, {
       method: 'POST',
-      body: JSON.stringify({
-        periodoTipo: periodo.tipo,
-        periodoIndex: periodo.index,
-        periodoLabel: periodo.label,
-        ...datosFactura
-      })
+      body: JSON.stringify({ periodoTipo: periodo.tipo, periodoIndex: periodo.index, periodoLabel: periodo.label, ...datosFactura })
     });
     recalcularSaldos(datos.contrato);
     return datos.contrato;
   },
 
   async registrarFechaPago(contratoId, facturaId, fechaPago) {
-    const datos = await peticion(`/contratos/${contratoId}/facturas/${facturaId}/fecha-pago`, {
-      method: 'PUT',
-      body: JSON.stringify({ fechaPago })
-    });
+    const datos = await peticion(`/contratos/${contratoId}/facturas/${facturaId}/fecha-pago`, { method: 'PUT', body: JSON.stringify({ fechaPago }) });
     recalcularSaldos(datos.contrato);
     return datos.contrato;
   },
@@ -203,7 +170,5 @@ const Store = {
     return datos.contrato;
   },
 
-  periodosDe(contrato) {
-    return generarPeriodos(contrato);
-  }
+  periodosDe(contrato) { return generarPeriodos(contrato); }
 };

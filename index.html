@@ -17,7 +17,7 @@
     </div>
     <div class="titular">
       <h1>Control de Contratos</h1>
-      <p>Captura, seguimiento y facturación de contratos institucionales en un solo lugar.</p>
+      <p>Captura, seguimiento y facturación de contratos y pedidos institucionales en un solo lugar.</p>
     </div>
     <p class="pie-marca">SEBISO · Gobierno del Estado de Hidalgo</p>
   </div>
@@ -51,16 +51,17 @@
       <div class="marca-app">
         <div class="escudo">SB</div>
         <div class="texto-marca">
-          <div class="nombre">Contratos</div>
-          <div class="sub">SEBISO</div>
+          <div class="nombre">SEBISO</div>
+          <div class="sub">Sistema de gestión</div>
         </div>
       </div>
       <nav>
-        <div class="nav-item activo"><span class="punto-nav"></span> Contratos</div>
+        <div class="nav-item activo" data-nav="contratos"><span class="punto-nav"></span> Contratos</div>
+        <div class="nav-item" data-nav="pedidos"><span class="punto-nav"></span> Pedidos</div>
       </nav>
       <div class="sidebar-pie">
-        <div class="sesion-usuario">Sesión activa<strong id="sesion-usuario">—</strong></div>
-        <button class="btn-cerrar-sesion-sidebar" id="btn-cerrar-sesion">Cerrar sesión</button>
+        <div class="sesion-usuario">Sesión activa<strong>—</strong></div>
+        <button class="btn-cerrar-sesion-sidebar" data-cerrar-sesion>Cerrar sesión</button>
       </div>
     </aside>
 
@@ -86,7 +87,64 @@
   </div>
 </div>
 
-<!-- ============ MODAL: CAPTURA DE OFICIO INICIAL (paso 1) ============ -->
+<!-- ============ PANTALLA: LISTADO DE PEDIDOS ============ -->
+<div id="pantalla-pedidos" class="pantalla">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="marca-app">
+        <div class="escudo">SB</div>
+        <div class="texto-marca">
+          <div class="nombre">SEBISO</div>
+          <div class="sub">Sistema de gestión</div>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-item" data-nav="contratos"><span class="punto-nav"></span> Contratos</div>
+        <div class="nav-item activo" data-nav="pedidos"><span class="punto-nav"></span> Pedidos</div>
+      </nav>
+      <div class="sidebar-pie">
+        <div class="sesion-usuario">Sesión activa<strong>—</strong></div>
+        <button class="btn-cerrar-sesion-sidebar" data-cerrar-sesion>Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <div class="contenedor">
+        <div class="encabezado-seccion">
+          <div>
+            <p class="eyebrow">Seguimiento de proceso</p>
+            <h1>Pedidos</h1>
+          </div>
+          <button class="btn btn-primario" id="btn-nuevo-pedido">+ Nuevo pedido</button>
+        </div>
+
+        <div class="buscador-fila">
+          <input type="text" id="buscador-pedidos" placeholder="Buscar por producto o proveedor…">
+          <select id="filtro-estatus-pedidos">
+            <option value="">Todos los estatus</option>
+            <option value="pedido_creado">Pedido creado</option>
+            <option value="entregado">Entregado</option>
+            <option value="oficio_registrado">Oficio de adecuación</option>
+            <option value="factura_recibida">Factura recibida</option>
+            <option value="en_contabilidad">En contabilidad</option>
+            <option value="en_pago">En proceso de pago</option>
+            <option value="pagado">Pagado</option>
+          </select>
+        </div>
+
+        <div class="panel" id="panel-listado-pedidos">
+          <div id="lista-pedidos"></div>
+          <div class="vacio" id="pedidos-vacio">
+            <div class="icono-vacio">📦</div>
+            <p>Aún no hay pedidos registrados. Usa "Nuevo pedido" para capturar el primero.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: CAPTURA DE OFICIO INICIAL (Contratos) ============ -->
 <div id="modal-nuevo-oficio" class="modal-fondo">
   <div class="modal-caja">
     <h2>Nuevo contrato</h2>
@@ -109,7 +167,7 @@
   </div>
 </div>
 
-<!-- ============ MODAL: EDITAR DATOS GENERALES (desde el inicio) ============ -->
+<!-- ============ MODAL: EDITAR DATOS GENERALES (Contratos) ============ -->
 <div id="modal-editar-generales" class="modal-fondo">
   <div class="modal-caja" style="max-width:600px;">
     <h2>Editar datos generales</h2>
@@ -168,7 +226,7 @@
   </div>
 </div>
 
-<!-- ============ MODAL: REGISTRAR OFICIO (desde el inicio) ============ -->
+<!-- ============ MODAL: REGISTRAR OFICIO (Contratos) ============ -->
 <div id="modal-registrar-oficio" class="modal-fondo">
   <div class="modal-caja">
     <h2>Registrar oficio</h2>
@@ -201,7 +259,95 @@
   </div>
 </div>
 
-<!-- ============ MODAL: CONFIRMACIÓN GENÉRICA ============ -->
+<!-- ============ MODAL: NUEVO PEDIDO ============ -->
+<div id="modal-nuevo-pedido" class="modal-fondo">
+  <div class="modal-caja" style="max-width:600px;">
+    <h2>Nuevo pedido</h2>
+    <p class="modal-subtitulo">Datos generales del pedido. Sirve para cualquier tipo de bien o servicio (garrafones, papelería, mobiliario, etc.).</p>
+    <form id="form-nuevo-pedido">
+      <div class="fila-formulario">
+        <label>Producto o servicio
+          <input type="text" name="producto" placeholder="Ej. Garrafones de agua" required>
+        </label>
+        <label>Cantidad
+          <input type="number" name="cantidad" step="0.01" min="0" required>
+        </label>
+      </div>
+      <div class="fila-formulario">
+        <label>Unidad de medida
+          <input type="text" name="unidadMedida" placeholder="Ej. piezas, cajas, servicio">
+        </label>
+        <label>Proveedor
+          <input type="text" name="proveedor">
+        </label>
+      </div>
+      <div class="fila-formulario">
+        <label>Área solicitante
+          <input type="text" name="areaSolicitante">
+        </label>
+        <label>Monto estimado
+          <input type="number" name="montoEstimado" step="0.01" min="0">
+        </label>
+      </div>
+      <label style="margin-bottom:18px;">Descripción / especificaciones
+        <textarea name="descripcion"></textarea>
+      </label>
+      <label style="margin-bottom:18px;">Fecha de solicitud
+        <input type="date" name="fechaSolicitud" required>
+      </label>
+      <div class="modal-acciones">
+        <button type="button" class="btn btn-secundario" id="btn-cerrar-modal-pedido">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Registrar pedido</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODAL: EDITAR DATOS DEL PEDIDO ============ -->
+<div id="modal-editar-pedido" class="modal-fondo">
+  <div class="modal-caja" style="max-width:600px;">
+    <h2>Editar datos del pedido</h2>
+    <p class="modal-subtitulo">Actualiza la información general de este pedido.</p>
+    <form id="form-editar-pedido">
+      <div class="fila-formulario">
+        <label>Producto o servicio
+          <input type="text" name="producto" required>
+        </label>
+        <label>Cantidad
+          <input type="number" name="cantidad" step="0.01" min="0" required>
+        </label>
+      </div>
+      <div class="fila-formulario">
+        <label>Unidad de medida
+          <input type="text" name="unidadMedida">
+        </label>
+        <label>Proveedor
+          <input type="text" name="proveedor">
+        </label>
+      </div>
+      <div class="fila-formulario">
+        <label>Área solicitante
+          <input type="text" name="areaSolicitante">
+        </label>
+        <label>Monto estimado
+          <input type="number" name="montoEstimado" step="0.01" min="0">
+        </label>
+      </div>
+      <label style="margin-bottom:18px;">Descripción / especificaciones
+        <textarea name="descripcion"></textarea>
+      </label>
+      <label style="margin-bottom:18px;">Fecha de solicitud
+        <input type="date" name="fechaSolicitud" required>
+      </label>
+      <div class="modal-acciones">
+        <button type="button" class="btn btn-secundario" id="btn-cerrar-modal-editar-pedido">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODAL: CONFIRMACIÓN GENÉRICA (compartida) ============ -->
 <div id="modal-confirmar-accion" class="modal-fondo">
   <div class="modal-caja">
     <h2 id="confirmar-titulo">Confirmar acción</h2>
@@ -213,13 +359,17 @@
   </div>
 </div>
 
-<!-- Aviso flotante de confirmación -->
+<!-- Aviso flotante -->
 <div id="aviso-flotante"></div>
 
 <script src="js/config.js"></script>
 <script src="js/state.js"></script>
+<script src="js/pedidos-state.js"></script>
 <script src="js/render.js"></script>
+<script src="js/pedidos-render.js"></script>
 <script src="js/modals.js"></script>
+<script src="js/pedidos-modals.js"></script>
 <script src="js/app.js"></script>
+<script src="js/pedidos-app.js"></script>
 </body>
 </html>

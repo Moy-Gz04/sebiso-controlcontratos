@@ -1,7 +1,6 @@
 // =========================================================
 // auth.js
-// Middleware que verifica el token JWT en cada petición
-// protegida. Se usa como: router.use(requiereAutenticacion);
+// Middleware que verifica el token JWT en cada petición protegida.
 // =========================================================
 
 const jwt = require('jsonwebtoken');

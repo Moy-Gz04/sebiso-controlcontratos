@@ -1,7 +1,7 @@
 {
   "name": "contratos-backend",
   "version": "1.0.0",
-  "description": "API - Control de Contratos SEBISO",
+  "description": "API - Control de Contratos y Pedidos SEBISO",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

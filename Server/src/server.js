@@ -3,7 +3,8 @@
 // Arranque del servidor.
 //   GET  /api/salud                -> prueba de conexión a la BD
 //   POST /api/login                -> autenticación real
-//   /api/contratos/...             -> CRUD completo (ver contratos.routes.js)
+//   /api/contratos/...             -> CRUD de contratos
+//   /api/pedidos/...               -> CRUD de pedidos (seguimiento por pasos)
 // =========================================================
 
 const express = require('express');
@@ -14,12 +15,10 @@ require('dotenv').config();
 
 const db = require('./db');
 const contratosRouter = require('./routes/contratos.routes');
+const pedidosRouter = require('./routes/pedidos.routes');
 
 const app = express();
 
-// CORS_ORIGIN en .env: dominios separados por coma que pueden llamar a esta API.
-// Ej: https://tu-sitio.netlify.app,http://localhost:5500
-// Si se deja vacío, se permite cualquier origen (útil solo para pruebas).
 const origenesPermitidos = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map(o => o.trim())
@@ -29,8 +28,6 @@ app.use(cors({
   origin: origenesPermitidos.length > 0 ? origenesPermitidos : true
 }));
 app.use(express.json());
-
-// ---------- Salud / prueba de conexión ----------
 
 app.get('/api/salud', async (req, res) => {
   try {
@@ -45,8 +42,6 @@ app.get('/api/salud', async (req, res) => {
     res.status(500).json({ ok: false, mensaje: 'No se pudo conectar a la base de datos' });
   }
 });
-
-// ---------- Login ----------
 
 app.post('/api/login', async (req, res) => {
   const { usuario, password } = req.body;
@@ -85,11 +80,8 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// ---------- Contratos / oficios / facturas ----------
-
 app.use('/api/contratos', contratosRouter);
-
-// ---------- Arranque ----------
+app.use('/api/pedidos', pedidosRouter);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

@@ -1,16 +1,25 @@
 // =========================================================
 // app.js
-// Punto de entrada: login/logout, navegación entre pantallas,
-// y el cableado de eventos de las tarjetas del listado
-// (expandir, eliminar, registrar factura, marcar como pagada,
-// completar). El renderizado vive en render.js, los modales
-// en modals.js y los datos en state.js.
+// Punto de entrada: login/logout, navegación entre Contratos
+// y Pedidos, y el cableado de eventos de las tarjetas del
+// listado de Contratos. Pedidos tiene su propio wiring en
+// pedidos-app.js.
 // =========================================================
 
 async function irAContratos() {
   mostrarPantalla('pantalla-contratos');
+  marcarNavActivo('contratos');
   await renderListadoContratos();
 }
+
+function marcarNavActivo(seccion) {
+  document.querySelectorAll('[data-nav]').forEach(item => {
+    item.classList.toggle('activo', item.dataset.nav === seccion);
+  });
+}
+
+document.querySelectorAll('[data-nav="contratos"]').forEach(item => item.addEventListener('click', irAContratos));
+document.querySelectorAll('[data-nav="pedidos"]').forEach(item => item.addEventListener('click', irAPedidos));
 
 // ---------- Login ----------
 
@@ -26,7 +35,7 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
   boton.textContent = 'Ingresando…';
   try {
     await Store.login(usuario, password);
-    document.getElementById('sesion-usuario').textContent = usuario;
+    document.querySelectorAll('.sesion-usuario strong').forEach(el => el.textContent = usuario);
     await irAContratos();
   } catch (err) {
     error.textContent = err.message;
@@ -41,14 +50,13 @@ function cerrarSesion() {
   document.getElementById('form-login').reset();
   mostrarPantalla('pantalla-login');
 }
-document.getElementById('btn-cerrar-sesion').addEventListener('click', cerrarSesion);
+document.querySelectorAll('[data-cerrar-sesion]').forEach(btn => btn.addEventListener('click', cerrarSesion));
 
-// ---------- Eventos de las tarjetas del listado ----------
+// ---------- Eventos de las tarjetas del listado de Contratos ----------
 
 function adjuntarEventosListado() {
   const contenedor = document.getElementById('lista-contratos');
 
-  // Expandir / colapsar tarjeta
   contenedor.querySelectorAll('[data-toggle-tarjeta]').forEach(header => {
     header.addEventListener('click', () => {
       const id = Number(header.dataset.toggleTarjeta);
@@ -58,7 +66,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Editar / registrar datos generales -> abre modal (modals.js)
   contenedor.querySelectorAll('[data-editar-generales]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = Number(btn.dataset.editarGenerales);
@@ -92,7 +99,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Registrar oficio -> abre modal (modals.js)
   contenedor.querySelectorAll('[data-registrar-oficio]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.registrarOficio);
@@ -103,7 +109,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Eliminar contrato
   contenedor.querySelectorAll('[data-eliminar-contrato]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.eliminarContrato);
@@ -124,7 +129,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Eliminar oficio (ampliación / cancelación)
   contenedor.querySelectorAll('[data-eliminar-oficio]').forEach(btn => {
     btn.addEventListener('click', () => {
       const contratoId = Number(btn.dataset.contratoId);
@@ -145,7 +149,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Toggle de periodos de facturación
   contenedor.querySelectorAll('[data-toggle-periodo]').forEach(header => {
     header.addEventListener('click', () => {
       const body = document.getElementById(`periodo-body-${header.dataset.togglePeriodo}`);
@@ -153,7 +156,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Guardar factura de un periodo (No. factura, monto y fecha de factura)
   contenedor.querySelectorAll('.form-factura').forEach(form => {
     form.addEventListener('click', (e) => e.stopPropagation());
     form.addEventListener('submit', async (e) => {
@@ -176,7 +178,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Eliminar factura
   contenedor.querySelectorAll('[data-eliminar-factura]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -198,7 +199,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Mostrar / ocultar formulario de fecha de pago
   contenedor.querySelectorAll('[data-toggle-pago]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -207,7 +207,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Guardar fecha de pago (cambia el estatus del periodo a "Pagado")
   contenedor.querySelectorAll('.form-fecha-pago').forEach(form => {
     form.addEventListener('click', (e) => e.stopPropagation());
     form.addEventListener('submit', async (e) => {
@@ -222,7 +221,6 @@ function adjuntarEventosListado() {
     });
   });
 
-  // Proceso completado
   contenedor.querySelectorAll('[data-completar]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.completar);
@@ -244,11 +242,9 @@ function adjuntarEventosListado() {
 }
 
 // ---------- Inicio ----------
-// Si ya había una sesión guardada (localStorage), se entra directo
-// al listado en vez de pedir login de nuevo cada vez.
 
 if (Store.haySesionGuardada()) {
-  document.getElementById('sesion-usuario').textContent = Store.usuarioActual() || '—';
+  document.querySelectorAll('.sesion-usuario strong').forEach(el => el.textContent = Store.usuarioActual() || '—');
   irAContratos();
 } else {
   mostrarPantalla('pantalla-login');

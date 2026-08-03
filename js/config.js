@@ -5,4 +5,4 @@
 // desplegado en Render (sin "/" al final).
 // =========================================================
 
-const API_BASE_URL = 'https://sebiso-controlcontratos.onrender.com';
+const API_BASE_URL = 'https://sebiso-controlcontratos.onrender.com/api';

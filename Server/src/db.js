@@ -1,16 +1,12 @@
 // =========================================================
 // db.js
-// Pool de conexión a NeonDB (Postgres). Se reutiliza en
-// todos los módulos con: const db = require('./db');
+// Pool de conexión a NeonDB (Postgres).
 // =========================================================
 
 const { Pool, types } = require('pg');
 require('dotenv').config();
 
-// Por defecto, node-postgres convierte las columnas DATE en objetos
-// Date de JS (a medianoche UTC), lo que puede "correrse" un día según
-// la zona horaria del servidor. Como en todo el sistema las fechas se
-// manejan como texto 'YYYY-MM-DD', se desactiva esa conversión.
+// DATE -> string 'YYYY-MM-DD', sin conversión de timezone.
 types.setTypeParser(1082, (valor) => valor);
 
 if (!process.env.DATABASE_URL) {
@@ -20,7 +16,7 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // requerido por Neon
+  ssl: { rejectUnauthorized: false }
 });
 
 pool.on('error', (err) => {
