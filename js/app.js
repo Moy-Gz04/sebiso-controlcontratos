@@ -19,7 +19,7 @@ function marcarNavActivo(seccion) {
 }
 
 document.querySelectorAll('[data-nav="contratos"]').forEach(item => item.addEventListener('click', irAContratos));
-document.querySelectorAll('[data-nav="pedidos"]').forEach(item => item.addEventListener('click', irAPedidos));
+document.querySelectorAll('[data-nav="pedidos"]').forEach(item => item.addEventListener('click', () => irAPedidos()));
 
 // ---------- Login ----------
 
