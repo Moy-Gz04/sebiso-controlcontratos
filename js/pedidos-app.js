@@ -44,8 +44,8 @@ function adjuntarEventosPedidos() {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.eliminarPedido);
       pedirConfirmacion({
-        titulo: 'Eliminar pedido',
-        mensaje: '¿Quieres eliminar este pedido por completo? Esta acción no se puede deshacer.',
+        titulo: 'Eliminar contrato',
+        mensaje: '¿Quieres eliminar este contrato por completo? Esta acción no se puede deshacer.',
         textoConfirmar: 'Sí, eliminar',
         peligro: true,
         accion: async () => {
@@ -53,7 +53,7 @@ function adjuntarEventosPedidos() {
             await StorePedidos.eliminar(id);
             tarjetasPedidoExpandidas.delete(id);
             await renderListadoPedidos();
-            mostrarAviso('Pedido eliminado.');
+            mostrarAviso('Contrato eliminado.');
           } catch (err) { mostrarAviso(err.message, true); }
         }
       });

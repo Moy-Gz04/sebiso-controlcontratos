@@ -9,7 +9,7 @@ let pedidosCache = [];
 const tarjetasPedidoExpandidas = new Set();
 
 const PASOS_PEDIDO = [
-  { clave: 'pedido_creado', label: 'Pedido creado' },
+  { clave: 'pedido_creado', label: 'Contrato creado' },
   { clave: 'entregado', label: 'Entregado' },
   { clave: 'oficio_registrado', label: 'Oficio de adecuación' },
   { clave: 'factura_recibida', label: 'Factura recibida' },
@@ -33,7 +33,7 @@ function claseBadgePedido(estatus) {
 
 async function renderListadoPedidos() {
   const contenedor = document.getElementById('lista-pedidos');
-  contenedor.innerHTML = `<p class="cargando">Cargando pedidos…</p>`;
+  contenedor.innerHTML = `<p class="cargando">Cargando contratos…</p>`;
   document.getElementById('pedidos-vacio').style.display = 'none';
 
   try {
@@ -70,8 +70,8 @@ function aplicarFiltrosPedidos() {
     contenedor.innerHTML = '';
     vacio.style.display = 'block';
     vacio.querySelector('p').textContent = pedidosCache.length === 0
-      ? 'Aún no hay pedidos registrados. Usa "Nuevo pedido" para capturar el primero.'
-      : 'Ningún pedido coincide con tu búsqueda o filtro.';
+      ? 'Aún no hay contratos registrados. Usa "Nuevo contrato" para capturar el primero.'
+      : 'Ningún contrato coincide con tu búsqueda o filtro.';
     return;
   }
   vacio.style.display = 'none';
@@ -253,7 +253,7 @@ function renderPanelAccionPedido(p, idxActual) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   if (p.estatus === 'pagado') {
-    return `<p class="ayuda-boton" style="margin-top:8px;">✓ Este pedido completó todo el proceso.</p>`;
+    return `<p class="ayuda-boton" style="margin-top:8px;">✓ Este contrato completó todo el proceso.</p>`;
   }
 
   const panel = (titulo, camposHtml) => `

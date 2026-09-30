@@ -38,7 +38,7 @@ document.getElementById('form-nuevo-pedido').addEventListener('submit', async (e
     cerrarModal('modal-nuevo-pedido');
     tarjetasPedidoExpandidas.add(pedido.id);
     await renderListadoPedidos();
-    mostrarAviso('Pedido registrado.');
+    mostrarAviso('Contrato registrado.');
   } catch (err) {
     mostrarAviso(err.message, true);
   }
@@ -56,6 +56,6 @@ document.getElementById('form-editar-pedido').addEventListener('submit', async (
     await StorePedidos.actualizarDatos(id, leerDatosPedidoDeFormulario(form));
     cerrarModal('modal-editar-pedido');
     await renderListadoPedidos();
-    mostrarAviso('Datos del pedido actualizados.');
+    mostrarAviso('Datos del contrato actualizados.');
   } catch (err) { mostrarAviso(err.message, true); }
 });
