@@ -71,9 +71,13 @@ document.querySelectorAll('[data-cerrar-sesion]').forEach(btn => btn.addEventLis
 
 // ---------- Inicio ----------
 
-if (Store.haySesionGuardada()) {
-  pintarSesion(Store.usuarioActual());
-  irAPedidos();
-} else {
-  mostrarPantalla('pantalla-login');
-}
+// Se arranca cuando ya cargaron todos los scripts: irAPedidos() vive en
+// pedidos-app.js, que se carga despues de este archivo.
+document.addEventListener('DOMContentLoaded', () => {
+  if (Store.haySesionGuardada()) {
+    pintarSesion(Store.usuarioActual());
+    irAPedidos();
+  } else {
+    mostrarPantalla('pantalla-login');
+  }
+});
