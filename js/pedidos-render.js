@@ -1,39 +1,65 @@
 // =========================================================
 // pedidos-render.js
-// Listado con buscador/filtro + tarjeta de pedido con el
-// stepper visual de 7 pasos y su panel de acción según en
-// qué paso vaya cada uno.
+// Pantalla de CONTRATOS (el flujo de 7 pasos que antes se
+// llamaba Pedidos): resumen con indicadores, filtro por etapa,
+// buscador y la tarjeta de cada contrato con su recorrido,
+// línea de tiempo y el formulario del paso que sigue.
 // =========================================================
 
 let pedidosCache = [];
 const tarjetasPedidoExpandidas = new Set();
+let filtroEtapa = '';          // '' = todas las etapas
+let ultimaTarjetaAbierta = null; // para animar solo la que se acaba de abrir
+let animarEntrada = true;      // la entrada escalonada solo al cargar o filtrar
 
 const PASOS_PEDIDO = [
-  { clave: 'pedido_creado', label: 'Contrato creado' },
-  { clave: 'entregado', label: 'Entregado' },
-  { clave: 'oficio_registrado', label: 'Oficio de adecuación' },
-  { clave: 'factura_recibida', label: 'Factura recibida' },
-  { clave: 'en_contabilidad', label: 'En contabilidad' },
-  { clave: 'en_pago', label: 'En proceso de pago' },
-  { clave: 'pagado', label: 'Pagado' }
+  { clave: 'pedido_creado',     label: 'Contrato creado',      corto: 'Creado',       icono: 'ti-file-plus' },
+  { clave: 'entregado',         label: 'Entregado',            corto: 'Entregado',    icono: 'ti-truck-delivery' },
+  { clave: 'oficio_registrado', label: 'Oficio de adecuación', corto: 'Oficio',       icono: 'ti-file-certificate' },
+  { clave: 'factura_recibida',  label: 'Factura recibida',     corto: 'Factura',      icono: 'ti-receipt' },
+  { clave: 'en_contabilidad',   label: 'En contabilidad',      corto: 'Contabilidad', icono: 'ti-calculator' },
+  { clave: 'en_pago',           label: 'En proceso de pago',   corto: 'En pago',      icono: 'ti-cash' },
+  { clave: 'pagado',            label: 'Pagado',               corto: 'Pagado',       icono: 'ti-circle-check' }
 ];
+
+// Qué hace falta para avanzar desde cada paso
+const SIGUIENTE_PASO = {
+  pedido_creado: 'Registrar la entrega',
+  entregado: 'Registrar el oficio de adecuación',
+  oficio_registrado: 'Registrar la factura',
+  factura_recibida: 'Turnar a contabilidad',
+  en_contabilidad: 'Iniciar el proceso de pago',
+  en_pago: 'Registrar el pago'
+};
 
 function indicePaso(estatus) {
   return ORDEN_PASOS_PEDIDO.indexOf(estatus);
 }
 
-function claseBadgePedido(estatus) {
+// Etapa en tres grupos, para el color de la tarjeta y la insignia
+function grupoEtapa(estatus) {
   const idx = indicePaso(estatus);
-  if (idx <= 1) return 'badge-oficio_capturado';
-  if (idx <= 5) return 'badge-en_facturacion';
-  return 'badge-completado';
+  if (idx <= 1) return 'inicio';
+  if (idx <= 5) return 'tramite';
+  return 'pagado';
 }
 
-// ---------- Listado con buscador y filtro ----------
+function claseBadgePedido(estatus) {
+  return { inicio: 'badge-oficio_capturado', tramite: 'badge-en_facturacion', pagado: 'badge-completado' }[grupoEtapa(estatus)];
+}
+
+function montoDe(p) {
+  return p.oficio ? calcularMontoDisponiblePedido(p) : Number(p.montoEstimado || 0);
+}
+
+const escaparHtml = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const reducirMovimiento = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- Carga ----------
 
 async function renderListadoPedidos() {
   const contenedor = document.getElementById('lista-pedidos');
-  contenedor.innerHTML = `<p class="cargando">Cargando contratos…</p>`;
+  if (!pedidosCache.length) contenedor.innerHTML = renderEsqueleto();
   document.getElementById('pedidos-vacio').style.display = 'none';
 
   try {
@@ -45,23 +71,96 @@ async function renderListadoPedidos() {
     return;
   }
 
+  renderResumenContratos();
   aplicarFiltrosPedidos();
 }
 
+function renderEsqueleto() {
+  return Array.from({ length: 3 }, () => `
+    <div class="tarjeta-esqueleto" aria-hidden="true">
+      <span class="esq esq-titulo"></span><span class="esq esq-linea"></span><span class="esq esq-barra"></span>
+    </div>`).join('');
+}
+
+// ---------- Resumen (indicadores) ----------
+
+function renderResumenContratos() {
+  const cont = document.getElementById('resumen-contratos');
+  if (!cont) return;
+  const total = pedidosCache.length;
+  const pagados = pedidosCache.filter(p => p.estatus === 'pagado').length;
+  const enProceso = total - pagados;
+  const enTramite = pedidosCache.filter(p => p.estatus !== 'pagado').reduce((s, p) => s + montoDe(p), 0);
+  const pagadoMonto = pedidosCache.filter(p => p.estatus === 'pagado').reduce((s, p) => s + montoDe(p), 0);
+
+  const kpi = (icono, etiqueta, valor, sub, esMoneda, clase = '') => `
+    <div class="kpi ${clase}">
+      <span class="kpi-icono"><i class="ti ${icono}"></i></span>
+      <div>
+        <div class="kpi-etiqueta">${etiqueta}</div>
+        <div class="kpi-valor" data-contar="${valor}" data-moneda="${esMoneda ? 1 : 0}">${esMoneda ? fmtMoneda.format(valor) : valor}</div>
+        <div class="kpi-sub">${sub}</div>
+      </div>
+    </div>`;
+
+  cont.innerHTML =
+    kpi('ti-files', 'Contratos registrados', total, 'en el sistema', false) +
+    kpi('ti-progress', 'En proceso', enProceso, 'aún sin pagar', false, 'kpi-tramite') +
+    kpi('ti-circle-check', 'Pagados', pagados, fmtMoneda.format(pagadoMonto) + ' pagado', false, 'kpi-pagado') +
+    kpi('ti-coin', 'Monto en trámite', enTramite, 'autorizado o estimado', true, 'kpi-destacado');
+
+  if (!reducirMovimiento()) {
+    cont.querySelectorAll('[data-contar]').forEach(el => contarHasta(el, Number(el.dataset.contar), el.dataset.moneda === '1'));
+  }
+  renderFiltroEtapas();
+}
+
+// Los números suben desde 0 al cargar (0.9 s, con frenado al final)
+function contarHasta(el, destino, esMoneda) {
+  const inicio = performance.now(), dur = 900;
+  const paso = (t) => {
+    const k = Math.min(1, (t - inicio) / dur), suave = 1 - Math.pow(1 - k, 3);
+    const v = destino * suave;
+    el.textContent = esMoneda ? fmtMoneda.format(v) : Math.round(v);
+    if (k < 1) requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
+}
+
+// ---------- Filtro por etapa (pastillas con conteo) ----------
+
+function renderFiltroEtapas() {
+  const cont = document.getElementById('filtro-etapas');
+  if (!cont) return;
+  const cuenta = (clave) => pedidosCache.filter(p => p.estatus === clave).length;
+  const pastilla = (clave, texto, n) => `
+    <button type="button" class="etapa-pill ${filtroEtapa === clave ? 'activa' : ''}" data-etapa="${clave}" aria-pressed="${filtroEtapa === clave}">
+      ${texto}<span class="etapa-num">${n}</span>
+    </button>`;
+  cont.innerHTML = pastilla('', 'Todas', pedidosCache.length) +
+    PASOS_PEDIDO.map(p => pastilla(p.clave, p.corto, cuenta(p.clave))).join('');
+  cont.querySelectorAll('[data-etapa]').forEach(b => b.addEventListener('click', () => {
+    filtroEtapa = b.dataset.etapa;
+    animarEntrada = true;
+    renderFiltroEtapas();
+    aplicarFiltrosPedidos();
+  }));
+}
+
+// ---------- Listado ----------
+
 function aplicarFiltrosPedidos() {
   const texto = document.getElementById('buscador-pedidos').value.trim().toLowerCase();
-  const filtroEstatus = document.getElementById('filtro-estatus-pedidos').value;
 
   let lista = pedidosCache;
   if (texto) {
     lista = lista.filter(p =>
       p.producto.toLowerCase().includes(texto) ||
-      (p.proveedor || '').toLowerCase().includes(texto)
+      (p.proveedor || '').toLowerCase().includes(texto) ||
+      (p.areaSolicitante || '').toLowerCase().includes(texto)
     );
   }
-  if (filtroEstatus) {
-    lista = lista.filter(p => p.estatus === filtroEstatus);
-  }
+  if (filtroEtapa) lista = lista.filter(p => p.estatus === filtroEtapa);
 
   const contenedor = document.getElementById('lista-pedidos');
   const vacio = document.getElementById('pedidos-vacio');
@@ -71,154 +170,146 @@ function aplicarFiltrosPedidos() {
     vacio.style.display = 'block';
     vacio.querySelector('p').textContent = pedidosCache.length === 0
       ? 'Aún no hay contratos registrados. Usa "Nuevo contrato" para capturar el primero.'
-      : 'Ningún contrato coincide con tu búsqueda o filtro.';
+      : 'Ningún contrato coincide con tu búsqueda o con la etapa elegida.';
     return;
   }
   vacio.style.display = 'none';
 
-  contenedor.innerHTML = lista.map(p => renderTarjetaPedido(p)).join('');
+  contenedor.innerHTML = lista.map((p, i) => renderTarjetaPedido(p, i)).join('');
+  contenedor.classList.toggle('animar-entrada', animarEntrada && !reducirMovimiento());
+  animarEntrada = false;
+  ultimaTarjetaAbierta = null;
   adjuntarEventosPedidos();
 }
 
-document.getElementById('buscador-pedidos').addEventListener('input', aplicarFiltrosPedidos);
-document.getElementById('filtro-estatus-pedidos').addEventListener('change', aplicarFiltrosPedidos);
+document.getElementById('buscador-pedidos').addEventListener('input', () => { animarEntrada = true; aplicarFiltrosPedidos(); });
 
-// ---------- Tarjeta de pedido ----------
+// ---------- Tarjeta ----------
 
-function renderMiniStepper(estatus) {
-  const idx = indicePaso(estatus);
-  return `
-    <div class="mini-stepper" title="${PASOS_PEDIDO[idx].label}">
-      ${PASOS_PEDIDO.map((paso, i) => `<span class="mini-punto ${i <= idx ? 'lleno' : ''}"></span>`).join('')}
-    </div>
-  `;
-}
-
-function renderTarjetaPedido(p) {
+function renderTarjetaPedido(p, i) {
   const abierta = tarjetasPedidoExpandidas.has(p.id);
-  const montoMostrar = p.oficio ? calcularMontoDisponiblePedido(p) : p.montoEstimado;
-  const etiquetaMonto = p.oficio ? 'Disponible' : 'Estimado';
+  const idx = indicePaso(p.estatus);
+  const paso = PASOS_PEDIDO[idx];
+  const avance = Math.round(idx / (PASOS_PEDIDO.length - 1) * 100);
+  const etiquetaMonto = p.oficio ? 'Autorizado' : 'Estimado';
+  const siguiente = SIGUIENTE_PASO[p.estatus];
 
   return `
-    <div class="tarjeta-contrato" data-id="${p.id}">
-      <div class="tarjeta-contrato-header" data-toggle-pedido="${p.id}">
-        <span class="tc-chevron ${abierta ? 'abierto' : ''}">›</span>
-        <div class="tc-info">
-          <span class="tc-folio">${p.producto}</span>
-          <span class="tc-detalle">${p.cantidad} ${p.unidadMedida || ''} · ${p.proveedor || 'Sin proveedor'}${p.areaSolicitante ? ' · ' + p.areaSolicitante : ''}</span>
+    <article class="tc etapa-${grupoEtapa(p.estatus)} ${abierta ? 'abierta' : ''}" data-id="${p.id}" style="--i:${i}">
+      <button type="button" class="tc-cabecera" data-toggle-pedido="${p.id}" aria-expanded="${abierta}" aria-controls="cuerpo-pedido-${p.id}">
+        <span class="tc-icono"><i class="ti ${paso.icono}"></i></span>
+        <span class="tc-principal">
+          <span class="tc-titulo">${escaparHtml(p.producto)}</span>
+          <span class="tc-meta">
+            <span><i class="ti ti-package"></i>${escaparHtml(p.cantidad)} ${escaparHtml(p.unidadMedida || '')}</span>
+            <span><i class="ti ti-building-store"></i>${escaparHtml(p.proveedor || 'Sin proveedor')}</span>
+            ${p.areaSolicitante ? `<span><i class="ti ti-users"></i>${escaparHtml(p.areaSolicitante)}</span>` : ''}
+          </span>
+        </span>
+        <span class="tc-lado">
+          <span class="tc-monto"><small>${etiquetaMonto}</small>${fmtMoneda.format(montoDe(p))}</span>
+          <span class="badge ${claseBadgePedido(p.estatus)}">${paso.label}</span>
+        </span>
+        <span class="tc-flecha"><i class="ti ti-chevron-down"></i></span>
+      </button>
+      <div class="tc-progreso">
+        <div class="tc-barra" role="progressbar" aria-valuemin="1" aria-valuemax="7" aria-valuenow="${idx + 1}" aria-label="Avance del contrato">
+          <span style="--avance:${avance}%"></span>
         </div>
-        ${renderMiniStepper(p.estatus)}
-        <span class="tc-monto">${etiquetaMonto}: ${fmtMoneda.format(montoMostrar)}</span>
-        <span class="badge ${claseBadgePedido(p.estatus)}">${PASOS_PEDIDO[indicePaso(p.estatus)].label}</span>
+        <span class="tc-paso-texto">Paso ${idx + 1} de ${PASOS_PEDIDO.length}${siguiente ? ` · <b>Sigue:</b> ${siguiente}` : ' · <b>Proceso completo</b>'}</span>
       </div>
-      <div class="tarjeta-contrato-acciones">
-        <button class="btn btn-secundario btn-sm" data-editar-pedido="${p.id}">Editar datos del pedido</button>
-        <button class="btn btn-texto btn-sm" data-eliminar-pedido="${p.id}">Eliminar</button>
-      </div>
-      <div class="tarjeta-contrato-body" id="cuerpo-pedido-${p.id}" style="display:${abierta ? 'block' : 'none'}">
+      <div class="tc-cuerpo ${abierta && ultimaTarjetaAbierta === p.id ? 'recien-abierta' : ''}" id="cuerpo-pedido-${p.id}" ${abierta ? '' : 'hidden'}>
         ${abierta ? renderCuerpoPedido(p) : ''}
       </div>
-    </div>
+    </article>
   `;
 }
 
-// ---------- Cuerpo expandido: stepper completo + detalle + acción ----------
+// ---------- Cuerpo desplegado ----------
 
 function renderCuerpoPedido(p) {
   const idxActual = indicePaso(p.estatus);
 
-  const stepperHtml = `
-    <div class="subseccion-titulo">Seguimiento del proceso</div>
-    <div class="pedido-stepper">
+  const recorrido = `
+    <div class="subseccion-titulo">Recorrido del contrato</div>
+    <ol class="recorrido" style="--avance:${idxActual / (PASOS_PEDIDO.length - 1)}">
       ${PASOS_PEDIDO.map((paso, i) => {
-        let estadoClase = 'pendiente';
-        if (i < idxActual) estadoClase = 'completado';
-        else if (i === idxActual) estadoClase = 'actual';
+        const estado = i < idxActual ? 'hecho' : i === idxActual ? 'actual' : 'pendiente';
         return `
-          <div class="paso-stepper ${estadoClase}">
-            <div class="paso-circulo">${i < idxActual ? '✓' : i + 1}</div>
-            <div class="paso-label">${paso.label}</div>
-          </div>
-        `;
+          <li class="rec-paso ${estado}" style="--j:${i}">
+            <span class="rec-circulo">${i < idxActual || (i === idxActual && p.estatus === 'pagado') ? '<i class="ti ti-check"></i>' : `<i class="ti ${paso.icono}"></i>`}</span>
+            <span class="rec-label">${paso.label}</span>
+          </li>`;
       }).join('')}
-    </div>
+    </ol>
   `;
 
-  const detalleHtml = `
-    <div class="subseccion-titulo" style="margin-top:26px;">Detalle capturado</div>
-    <div class="resumen-grid" style="margin-bottom:26px;">
-      <div class="resumen-item">
-        <div class="resumen-label">Fecha de solicitud</div>
-        <div class="resumen-valor" style="font-size:15px;">${fmtFecha(p.fechaSolicitud)}</div>
-      </div>
-      <div class="resumen-item">
-        <div class="resumen-label">Monto estimado</div>
-        <div class="resumen-valor" style="font-size:15px;">${fmtMoneda.format(p.montoEstimado)}</div>
-      </div>
-      ${p.fechaEntrega ? `
-      <div class="resumen-item">
-        <div class="resumen-label">Fecha de entrega</div>
-        <div class="resumen-valor" style="font-size:15px;">${fmtFecha(p.fechaEntrega)}</div>
-      </div>` : ''}
-      ${p.oficio ? `
-      <div class="resumen-item destacado">
-        <div class="resumen-label">Oficio de adecuación</div>
-        <div class="resumen-valor" style="font-size:15px;">${p.oficio.folio} · ${fmtMoneda.format(p.oficio.monto)}</div>
-      </div>
-      <div class="resumen-item">
-        <div class="resumen-label">Monto disponible (con ajustes)</div>
-        <div class="resumen-valor" style="font-size:15px;">${fmtMoneda.format(calcularMontoDisponiblePedido(p))}</div>
-      </div>` : ''}
-      ${p.factura ? `
-      <div class="resumen-item">
-        <div class="resumen-label">Factura</div>
-        <div class="resumen-valor" style="font-size:15px;">${p.factura.noFactura} · ${fmtMoneda.format(p.factura.monto)}</div>
-      </div>` : ''}
-      ${p.fechaContabilidad ? `
-      <div class="resumen-item">
-        <div class="resumen-label">Pasó a contabilidad</div>
-        <div class="resumen-valor" style="font-size:15px;">${fmtFecha(p.fechaContabilidad)}</div>
-      </div>` : ''}
-      ${p.fechaInicioPago ? `
-      <div class="resumen-item">
-        <div class="resumen-label">Inicio de proceso de pago</div>
-        <div class="resumen-valor" style="font-size:15px;">${fmtFecha(p.fechaInicioPago)}</div>
-      </div>` : ''}
-      ${p.fechaPagado ? `
-      <div class="resumen-item destacado">
-        <div class="resumen-label">Pagado</div>
-        <div class="resumen-valor" style="font-size:15px;">${fmtFecha(p.fechaPagado)}</div>
-      </div>` : ''}
+  // Línea de tiempo con lo que ya se capturó, en orden
+  const eventos = [
+    { fecha: p.fechaSolicitud, titulo: 'Solicitud', detalle: `Monto estimado ${fmtMoneda.format(p.montoEstimado || 0)}` },
+    p.fechaEntrega && { fecha: p.fechaEntrega, titulo: 'Entrega', detalle: 'El proveedor entregó el bien o servicio' },
+    p.oficio && { fecha: p.oficio.fecha, titulo: 'Oficio de adecuación', detalle: `${escaparHtml(p.oficio.folio)} · ${fmtMoneda.format(p.oficio.monto)}`, destacado: true },
+    ...(p.oficios || []).map(of => ({ fecha: of.fecha, titulo: of.tipo === 'ampliacion' ? 'Ampliación' : 'Cancelación', detalle: `${escaparHtml(of.folio)} · ${of.tipo === 'cancelacion' ? '−' : '+'}${fmtMoneda.format(of.monto)}` })),
+    p.factura && { fecha: p.factura.fecha, titulo: 'Factura recibida', detalle: `No. ${escaparHtml(p.factura.noFactura)} · ${fmtMoneda.format(p.factura.monto)}` },
+    p.fechaContabilidad && { fecha: p.fechaContabilidad, titulo: 'Turnado a contabilidad', detalle: '' },
+    p.fechaInicioPago && { fecha: p.fechaInicioPago, titulo: 'Inicio del proceso de pago', detalle: '' },
+    p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Pagado', detalle: 'Proceso concluido', destacado: true }
+  ].filter(Boolean);
+
+  const detalle = `
+    <div class="cuerpo-columnas">
+      <section>
+        <div class="subseccion-titulo">Historial</div>
+        <ul class="linea-tiempo">
+          ${eventos.map(e => `
+            <li class="${e.destacado ? 'destacado' : ''}">
+              <span class="lt-fecha">${fmtFecha(e.fecha)}</span>
+              <span class="lt-titulo">${e.titulo}</span>
+              ${e.detalle ? `<span class="lt-detalle">${e.detalle}</span>` : ''}
+            </li>`).join('')}
+        </ul>
+        ${p.descripcion ? `<div class="nota-descripcion"><i class="ti ti-notes"></i>${escaparHtml(p.descripcion)}</div>` : ''}
+      </section>
+      <section>
+        ${renderPanelAccionPedido(p, idxActual)}
+        ${p.oficio ? `
+        <div class="montos-mini">
+          <div><span>Oficio de adecuación</span><b>${fmtMoneda.format(p.oficio.monto)}</b></div>
+          <div class="total"><span>Disponible con ajustes</span><b>${fmtMoneda.format(calcularMontoDisponiblePedido(p))}</b></div>
+        </div>` : ''}
+      </section>
     </div>
   `;
 
   // Oficios de ampliación/cancelación: disponibles desde "oficio_registrado" en adelante
   let oficiosHtml = '';
   if (idxActual >= indicePaso('oficio_registrado')) {
-    oficiosHtml = `<div class="subseccion-titulo">Oficios de ampliación / cancelación</div>`;
+    oficiosHtml = `<div class="bloque-oficios"><div class="subseccion-titulo">Oficios de ampliación / cancelación</div>`;
     if (p.oficios.length === 0) {
-      oficiosHtml += `<div class="bloqueo" style="margin-bottom:26px;">Aún no se han registrado ajustes sobre el oficio de adecuación.</div>`;
+      oficiosHtml += `<p class="texto-suave">Aún no hay ajustes sobre el oficio de adecuación.</p>`;
     } else {
       oficiosHtml += `
-        <table class="tabla-oficios-registrados" style="margin-bottom:18px;">
+        <div class="tabla-scroll">
+        <table class="tabla-oficios-registrados">
           <thead><tr><th>Tipo</th><th>Folio</th><th>Monto</th><th>Fecha</th><th></th></tr></thead>
           <tbody>
             ${p.oficios.map(of => `
               <tr>
                 <td>${of.tipo === 'ampliacion' ? 'Ampliación' : 'Cancelación'}</td>
-                <td>${of.folio}</td>
-                <td class="${of.tipo === 'cancelacion' ? 'texto-negativo' : ''}">${of.tipo === 'cancelacion' ? '−' : '+'}${fmtMoneda.format(of.monto)}</td>
+                <td>${escaparHtml(of.folio)}</td>
+                <td class="${of.tipo === 'cancelacion' ? 'texto-negativo' : 'texto-positivo'}">${of.tipo === 'cancelacion' ? '−' : '+'}${fmtMoneda.format(of.monto)}</td>
                 <td>${fmtFecha(of.fecha)}</td>
-                <td><button class="btn-icono" data-eliminar-oficio-pedido="${of.id}" data-pedido-id="${p.id}" title="Eliminar">✕</button></td>
+                <td><button type="button" class="btn-icono" data-eliminar-oficio-pedido="${of.id}" data-pedido-id="${p.id}" title="Eliminar oficio" aria-label="Eliminar oficio ${escaparHtml(of.folio)}"><i class="ti ti-trash"></i></button></td>
               </tr>
             `).join('')}
           </tbody>
         </table>
+        </div>
       `;
     }
     oficiosHtml += `
-      <form class="form-oficio-pedido" data-pedido-id="${p.id}" style="margin-bottom:26px;">
-        <div class="fila-formulario">
+      <form class="form-oficio-pedido" data-pedido-id="${p.id}">
+        <div class="fila-formulario fila-4">
           <label>Tipo
             <select name="tipo" required>
               <option value="ampliacion">Ampliación</option>
@@ -228,8 +319,6 @@ function renderCuerpoPedido(p) {
           <label>Folio
             <input type="text" name="folio" placeholder="Ej. SH/0812/2026" required>
           </label>
-        </div>
-        <div class="fila-formulario">
           <label>Monto
             <input type="number" name="monto" step="0.01" min="0" required>
           </label>
@@ -237,45 +326,52 @@ function renderCuerpoPedido(p) {
             <input type="date" name="fecha" required>
           </label>
         </div>
-        <button type="submit" class="btn btn-secundario btn-sm">+ Agregar oficio</button>
+        <button type="submit" class="btn btn-secundario btn-sm"><i class="ti ti-plus"></i> Agregar oficio</button>
       </form>
-    `;
+    </div>`;
   }
 
-  const accionHtml = renderPanelAccionPedido(p, idxActual);
+  const acciones = `
+    <div class="tc-acciones">
+      <button type="button" class="btn btn-secundario btn-sm" data-editar-pedido="${p.id}"><i class="ti ti-pencil"></i> Editar datos</button>
+      <button type="button" class="btn btn-texto btn-sm" data-eliminar-pedido="${p.id}"><i class="ti ti-trash"></i> Eliminar contrato</button>
+    </div>`;
 
-  return stepperHtml + detalleHtml + oficiosHtml + accionHtml;
+  return recorrido + detalle + oficiosHtml + acciones;
 }
 
-// ---------- Panel de acción según el paso actual ----------
+// ---------- Panel del paso que sigue ----------
 
 function renderPanelAccionPedido(p, idxActual) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   if (p.estatus === 'pagado') {
-    return `<p class="ayuda-boton" style="margin-top:8px;">✓ Este contrato completó todo el proceso.</p>`;
+    return `<div class="panel-completo"><i class="ti ti-rosette-discount-check"></i><div><b>Contrato concluido</b><span>Se pagó el ${fmtFecha(p.fechaPagado)}.</span></div></div>`;
   }
 
-  const panel = (titulo, camposHtml) => `
+  const panel = (titulo, ayuda, camposHtml) => `
     <div class="panel-paso-actual">
-      <div class="subseccion-titulo">${titulo}</div>
+      <div class="ppa-encabezado">
+        <span class="ppa-num">${idxActual + 2}</span>
+        <div><div class="ppa-titulo">${titulo}</div><div class="ppa-ayuda">${ayuda}</div></div>
+      </div>
       ${camposHtml}
     </div>
   `;
 
   switch (p.estatus) {
     case 'pedido_creado':
-      return panel('Registrar entrega', `
+      return panel('Registrar entrega', 'Cuando el proveedor entregue el bien o servicio.', `
         <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="entrega">
-          <label style="margin-bottom:14px;">Fecha de entrega
+          <label>Fecha de entrega
             <input type="date" name="fechaEntrega" value="${hoy}" required>
           </label>
-          <button type="submit" class="btn btn-primario btn-sm">Registrar entrega</button>
+          <button type="submit" class="btn btn-primario btn-sm">Registrar entrega <i class="ti ti-arrow-right"></i></button>
         </form>
       `);
 
     case 'entregado':
-      return panel('Registrar oficio de adecuación', `
+      return panel('Registrar oficio de adecuación', 'El oficio que autoriza el monto real.', `
         <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="oficio-adecuacion">
           <div class="fila-formulario">
             <label>Folio del oficio
@@ -285,15 +381,15 @@ function renderPanelAccionPedido(p, idxActual) {
               <input type="number" name="monto" step="0.01" min="0" required>
             </label>
           </div>
-          <label style="margin-bottom:14px;">Fecha del oficio
+          <label>Fecha del oficio
             <input type="date" name="fecha" value="${hoy}" required>
           </label>
-          <button type="submit" class="btn btn-primario btn-sm">Registrar oficio</button>
+          <button type="submit" class="btn btn-primario btn-sm">Registrar oficio <i class="ti ti-arrow-right"></i></button>
         </form>
       `);
 
     case 'oficio_registrado':
-      return panel('Registrar factura recibida', `
+      return panel('Registrar factura recibida', 'La factura que envió el proveedor.', `
         <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="factura">
           <div class="fila-formulario">
             <label>No. de factura
@@ -303,40 +399,40 @@ function renderPanelAccionPedido(p, idxActual) {
               <input type="number" name="monto" step="0.01" min="0" required>
             </label>
           </div>
-          <label style="margin-bottom:14px;">Fecha de factura
+          <label>Fecha de factura
             <input type="date" name="fecha" value="${hoy}" required>
           </label>
-          <button type="submit" class="btn btn-primario btn-sm">Registrar factura</button>
+          <button type="submit" class="btn btn-primario btn-sm">Registrar factura <i class="ti ti-arrow-right"></i></button>
         </form>
       `);
 
     case 'factura_recibida':
-      return panel('Registrar paso a contabilidad', `
+      return panel('Turnar a contabilidad', 'Fecha en que la factura pasó a contabilidad.', `
         <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="contabilidad">
-          <label style="margin-bottom:14px;">Fecha en que pasó a contabilidad
+          <label>Fecha en que pasó a contabilidad
             <input type="date" name="fechaContabilidad" value="${hoy}" required>
           </label>
-          <button type="submit" class="btn btn-primario btn-sm">Registrar</button>
+          <button type="submit" class="btn btn-primario btn-sm">Registrar <i class="ti ti-arrow-right"></i></button>
         </form>
       `);
 
     case 'en_contabilidad':
-      return panel('Marcar en proceso de pago', `
+      return panel('Iniciar proceso de pago', 'Fecha en que contabilidad inició el pago.', `
         <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="inicio-pago">
-          <label style="margin-bottom:14px;">Fecha de inicio del proceso de pago
+          <label>Fecha de inicio del proceso de pago
             <input type="date" name="fechaInicioPago" value="${hoy}" required>
           </label>
-          <button type="submit" class="btn btn-primario btn-sm">Marcar en proceso de pago</button>
+          <button type="submit" class="btn btn-primario btn-sm">Marcar en proceso de pago <i class="ti ti-arrow-right"></i></button>
         </form>
       `);
 
     case 'en_pago':
-      return panel('Registrar pago (cierra el proceso)', `
+      return panel('Registrar pago', 'Con esto se cierra el contrato.', `
         <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="pagado">
-          <label style="margin-bottom:14px;">Fecha de pago
+          <label>Fecha de pago
             <input type="date" name="fechaPagado" value="${hoy}" required>
           </label>
-          <button type="submit" class="btn btn-primario btn-sm">Registrar pago y completar</button>
+          <button type="submit" class="btn btn-primario btn-sm">Registrar pago y concluir <i class="ti ti-check"></i></button>
         </form>
       `);
 

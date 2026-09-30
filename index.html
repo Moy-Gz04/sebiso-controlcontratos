@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-<link rel="stylesheet" href="css/estilos.css?v=20260930b">
+<link rel="stylesheet" href="css/estilos.css?v=20260930c">
 </head>
 <body>
 
@@ -115,27 +115,23 @@
             <p class="eyebrow">Seguimiento de proceso</p>
             <h1>Contratos</h1>
           </div>
-          <button class="btn btn-primario" id="btn-nuevo-pedido">+ Nuevo contrato</button>
+          <button class="btn btn-primario btn-nuevo" id="btn-nuevo-pedido"><i class="ti ti-plus"></i> Nuevo contrato</button>
         </div>
 
-        <div class="buscador-fila">
-          <input type="text" id="buscador-pedidos" placeholder="Buscar por producto o proveedor…">
-          <select id="filtro-estatus-pedidos">
-            <option value="">Todos los estatus</option>
-            <option value="pedido_creado">Contrato creado</option>
-            <option value="entregado">Entregado</option>
-            <option value="oficio_registrado">Oficio de adecuación</option>
-            <option value="factura_recibida">Factura recibida</option>
-            <option value="en_contabilidad">En contabilidad</option>
-            <option value="en_pago">En proceso de pago</option>
-            <option value="pagado">Pagado</option>
-          </select>
+        <div class="resumen-kpis" id="resumen-contratos"></div>
+
+        <div class="barra-filtros">
+          <div class="buscador">
+            <i class="ti ti-search"></i>
+            <input type="search" id="buscador-pedidos" placeholder="Buscar por producto, proveedor o área…" aria-label="Buscar contratos">
+          </div>
+          <div class="filtro-etapas" id="filtro-etapas" role="group" aria-label="Filtrar por etapa"></div>
         </div>
 
-        <div class="panel" id="panel-listado-pedidos">
+        <div class="lista-contratos" id="panel-listado-pedidos">
           <div id="lista-pedidos"></div>
           <div class="vacio" id="pedidos-vacio">
-            <div class="icono-vacio">📦</div>
+            <div class="icono-vacio"><i class="ti ti-file-search"></i></div>
             <p>Aún no hay contratos registrados. Usa "Nuevo contrato" para capturar el primero.</p>
           </div>
         </div>
@@ -247,15 +243,15 @@
 <!-- Aviso flotante -->
 <div id="aviso-flotante"></div>
 
-<script src="js/config.js?v=20260930b"></script>
-<script src="js/state.js?v=20260930b"></script>
-<script src="js/pedidos-state.js?v=20260930b"></script>
-<script src="js/render.js?v=20260930b"></script>
-<script src="js/pedidos-render.js?v=20260930b"></script>
-<script src="js/modals.js?v=20260930b"></script>
-<script src="js/pedidos-modals.js?v=20260930b"></script>
-<script src="js/app.js?v=20260930b"></script>
-<script src="js/pedidos-app.js?v=20260930b"></script>
-<script src="js/lluvia.js?v=20260930b"></script>
+<script src="js/config.js?v=20260930c"></script>
+<script src="js/state.js?v=20260930c"></script>
+<script src="js/pedidos-state.js?v=20260930c"></script>
+<script src="js/render.js?v=20260930c"></script>
+<script src="js/pedidos-render.js?v=20260930c"></script>
+<script src="js/modals.js?v=20260930c"></script>
+<script src="js/pedidos-modals.js?v=20260930c"></script>
+<script src="js/app.js?v=20260930c"></script>
+<script src="js/pedidos-app.js?v=20260930c"></script>
+<script src="js/lluvia.js?v=20260930c"></script>
 </body>
 </html>

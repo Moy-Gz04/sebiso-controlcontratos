@@ -19,6 +19,11 @@ function adjuntarEventosPedidos() {
       if (tarjetasPedidoExpandidas.has(id)) tarjetasPedidoExpandidas.delete(id);
       else tarjetasPedidoExpandidas.add(id);
       aplicarFiltrosPedidos();
+      // aplicarFiltros() limpia la marca; se pone después para animar solo esta tarjeta
+      if (tarjetasPedidoExpandidas.has(id)) {
+        const cuerpo = document.getElementById(`cuerpo-pedido-${id}`);
+        if (cuerpo) cuerpo.classList.add('recien-abierta');
+      }
     });
   });
 
