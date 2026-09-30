@@ -40,8 +40,11 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
   const boton = e.target.querySelector('button[type="submit"]');
 
   error.textContent = '';
+  if (!usuario || !password) { error.textContent = 'Completa todos los campos.'; return; }
+  if (document.getElementById('chk-recordar').checked) localStorage.setItem('contratos_usuario_recordado', usuario);
+  else localStorage.removeItem('contratos_usuario_recordado');
   boton.disabled = true;
-  boton.textContent = 'Ingresando…';
+  boton.classList.add('cargando');
   try {
     await Store.login(usuario, password);
     pintarSesion(usuario);
@@ -50,13 +53,30 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
     error.textContent = err.message;
   } finally {
     boton.disabled = false;
-    boton.textContent = 'Ingresar';
+    boton.classList.remove('cargando');
   }
 });
+
+// Ver / ocultar contraseña y "Recordarme" (solo el usuario, nunca la contraseña)
+document.getElementById('btn-ver-pass').addEventListener('click', () => {
+  const campo = document.getElementById('login-password');
+  const oculto = campo.type === 'password';
+  campo.type = oculto ? 'text' : 'password';
+  document.getElementById('ico-ojo').className = oculto ? 'ti ti-eye-off' : 'ti ti-eye';
+});
+['login-usuario', 'login-password'].forEach(id =>
+  document.getElementById(id).addEventListener('input', () => { document.getElementById('login-error').textContent = ''; }));
+function prepararLogin() {
+  const recordado = localStorage.getItem('contratos_usuario_recordado');
+  document.getElementById('login-usuario').value = recordado || '';
+  document.getElementById('chk-recordar').checked = !!recordado;
+}
+prepararLogin();
 
 function cerrarSesion() {
   Store.cerrarSesion();
   document.getElementById('form-login').reset();
+  prepararLogin();
   mostrarPantalla('pantalla-login');
 }
 document.querySelectorAll('[data-cerrar-sesion]').forEach(btn => btn.addEventListener('click', cerrarSesion));

@@ -4,41 +4,78 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Control de Contratos · SEBISO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
 
 <!-- ============ PANTALLA: LOGIN ============ -->
 <div id="pantalla-login" class="pantalla">
-  <div class="login-marca">
-    <div>
-      <div class="escudo">SB</div>
-      <p class="institucion">Secretaría de Bienestar<br>e Inclusión Social</p>
-    </div>
-    <div class="titular">
-      <h1>Control de Contratos</h1>
-      <p>Captura, seguimiento y facturación de contratos y pedidos institucionales en un solo lugar.</p>
-    </div>
-    <p class="pie-marca">SEBISO · Gobierno del Estado de Hidalgo</p>
-  </div>
+  <!-- Lluvia de flores de cempasúchil, igual que el login de Correspondencia (js/lluvia.js) -->
+  <div class="lluvia-flores" id="lluvia-flores"></div>
 
-  <div class="login-formulario">
-    <div class="tarjeta-login">
-      <div class="encabezado-login">
-        <h2>Bienvenido</h2>
-        <p>Inicia sesión con tu cuenta institucional</p>
+  <div class="login-wrap">
+    <div class="login-halo"></div>
+
+    <div class="login-card">
+      <div class="login-header">
+        <div class="escudo-placeholder">
+          <img src="img/logo.png" alt="Escudo Secretaría de Bienestar e Inclusión Social"
+               onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'ti ti-building-bank'}))">
+        </div>
+        <div class="login-gov">Gobierno del Estado de Hidalgo</div>
+        <div class="login-secretaria">Secretaría de Bienestar e Inclusión Social</div>
+        <div class="login-subsecretaria">Control de Contratos</div>
       </div>
-      <form id="form-login">
-        <div class="fila-formulario" style="grid-template-columns:1fr; margin-bottom:0;">
-          <label>Usuario
-            <input type="text" id="login-usuario" required autocomplete="username">
-          </label>
-          <label>Contraseña
-            <input type="password" id="login-password" required autocomplete="current-password">
+
+      <div class="login-titulo-bloque">
+        <div class="login-titulo">Acceso al Sistema</div>
+        <div class="login-subtitulo">Ingresa tus credenciales institucionales</div>
+      </div>
+
+      <form id="form-login" class="login-body" novalidate>
+        <div class="campo-grupo">
+          <label class="campo-label" for="login-usuario">Usuario</label>
+          <div class="campo-input-wrap">
+            <i class="ti ti-user icono-campo"></i>
+            <input class="campo-input" id="login-usuario" type="text" autocomplete="username" placeholder="Tu usuario" spellcheck="false" required>
+          </div>
+        </div>
+
+        <div class="campo-grupo">
+          <label class="campo-label" for="login-password">Contraseña</label>
+          <div class="campo-input-wrap">
+            <i class="ti ti-lock icono-campo"></i>
+            <input class="campo-input" id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            <button class="btn-ver-pass" type="button" id="btn-ver-pass" title="Mostrar contraseña" tabindex="-1">
+              <i class="ti ti-eye" id="ico-ojo"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="fila-recordarme">
+          <label class="neu-toggle">
+            <input type="checkbox" id="chk-recordar">
+            <span class="neu-toggle-track"><span class="neu-toggle-thumb"></span></span>
+            <span class="neu-toggle-label">Recordarme</span>
           </label>
         </div>
-        <p class="campo-error" id="login-error"></p>
-        <button type="submit" class="btn btn-primario btn-ancho" style="margin-top:8px;">Ingresar</button>
+
+        <p class="error-msg" id="login-error"></p>
+
+        <button type="submit" class="btn-login">
+          <span class="spinner"></span>
+          <i class="ti ti-login btn-icono"></i>
+          <span class="btn-texto">Ingresar al Sistema</span>
+        </button>
+
+        <div class="login-pie">
+          Sistema de uso exclusivo para personal autorizado de la Secretaría.<br>
+          SEBISO © 2026 — Gobierno del Estado de Hidalgo
+        </div>
       </form>
     </div>
   </div>
@@ -385,5 +422,6 @@
 <script src="js/pedidos-modals.js"></script>
 <script src="js/app.js"></script>
 <script src="js/pedidos-app.js"></script>
+<script src="js/lluvia.js"></script>
 </body>
 </html>
