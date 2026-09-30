@@ -21,6 +21,15 @@ function marcarNavActivo(seccion) {
 document.querySelectorAll('[data-nav="contratos"]').forEach(item => item.addEventListener('click', irAContratos));
 document.querySelectorAll('[data-nav="pedidos"]').forEach(item => item.addEventListener('click', () => irAPedidos()));
 
+// Encabezado superior: nombre de usuario, inicial del avatar y fecha de hoy
+function pintarSesion(usuario) {
+  const nombre = usuario || '—';
+  document.querySelectorAll('.sesion-usuario strong').forEach(el => el.textContent = nombre);
+  document.querySelectorAll('[data-avatar]').forEach(el => el.textContent = usuario ? usuario.charAt(0).toUpperCase() : '?');
+  const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  document.querySelectorAll('[data-fecha-hoy]').forEach(el => el.textContent = hoy.charAt(0).toUpperCase() + hoy.slice(1));
+}
+
 // ---------- Login ----------
 
 document.getElementById('form-login').addEventListener('submit', async (e) => {
@@ -35,7 +44,7 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
   boton.textContent = 'Ingresando…';
   try {
     await Store.login(usuario, password);
-    document.querySelectorAll('.sesion-usuario strong').forEach(el => el.textContent = usuario);
+    pintarSesion(usuario);
     await irAContratos();
   } catch (err) {
     error.textContent = err.message;
@@ -244,7 +253,7 @@ function adjuntarEventosListado() {
 // ---------- Inicio ----------
 
 if (Store.haySesionGuardada()) {
-  document.querySelectorAll('.sesion-usuario strong').forEach(el => el.textContent = Store.usuarioActual() || '—');
+  pintarSesion(Store.usuarioActual());
   irAContratos();
 } else {
   mostrarPantalla('pantalla-login');

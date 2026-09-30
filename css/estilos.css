@@ -120,53 +120,80 @@ input, select, textarea { font-family: inherit; }
 .campo-error { color: var(--peligro); font-size: 13px; min-height: 18px; margin: 2px 0 0; }
 
 /* ======================================================
-   ESTRUCTURA APP (sidebar + contenido)
+   ESTRUCTURA APP (menú superior + contenido)
+   Mismo encabezado institucional que Programas y
+   Correspondencia: franja tricolor, barra blanca con
+   logo / fecha / usuario / cerrar sesión, y debajo el
+   menú guinda con pestañas (la activa en dorado).
    ====================================================== */
 
-.app-shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
 
-.sidebar {
-  background: linear-gradient(190deg, var(--guinda) 0%, var(--guinda-oscuro) 130%);
-  color: #fff; padding: 28px 20px; display: flex; flex-direction: column;
+.navbar-wrap { position: sticky; top: 0; z-index: 40; }
+.navbar-wrap::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 1;
+  background: linear-gradient(90deg,
+    var(--guinda) 0%, var(--guinda) 33.33%,
+    var(--dorado) 33.33%, var(--dorado) 66.66%,
+    var(--guinda-oscuro) 66.66%, var(--guinda-oscuro) 100%);
 }
-
-.sidebar .marca-app {
-  display: flex; align-items: center; gap: 12px; padding: 0 8px 26px;
-  margin-bottom: 22px; border-bottom: 1px solid rgba(255,255,255,0.12);
+.navbar-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 5% 12px; background: var(--gris-panel); border-bottom: 1px solid var(--borde); position: relative;
 }
+.navbar-top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 3px; background: var(--dorado); }
 
-.sidebar .marca-app .escudo {
-  width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--dorado-claro);
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Montserrat', sans-serif; font-size: 13px; color: var(--dorado-claro); flex-shrink: 0;
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand-logo {
+  width: 42px; height: 42px; object-fit: contain; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid var(--dorado); background: #fff; padding: 2px; box-shadow: 0 2px 6px rgba(62,10,25,0.18);
 }
-
-.sidebar .marca-app .texto-marca .nombre { font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 14.5px; line-height: 1.2; }
-.sidebar .marca-app .texto-marca .sub { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.45); }
-
-.sidebar nav { display: flex; flex-direction: column; gap: 3px; }
-
-.sidebar nav .nav-item {
-  display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 8px;
-  font-size: 13.5px; font-weight: 500; color: rgba(255,255,255,0.68); position: relative; cursor: pointer;
+.brand-logo-fallback {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; background: var(--dorado); color: var(--guinda-oscuro);
+  display: flex; align-items: center; justify-content: center; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 17px;
 }
-.sidebar nav .nav-item .punto-nav { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.6; }
-.sidebar nav .nav-item.activo { background: rgba(255,255,255,0.09); color: #fff; }
-.sidebar nav .nav-item.activo .punto-nav { background: var(--dorado-claro); opacity: 1; }
-.sidebar nav .nav-item:hover { color: #fff; }
+.brand-text { line-height: 1.3; min-width: 0; }
+.brand-text .t0 { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: 0.8px; color: var(--guinda); text-transform: uppercase; }
+.brand-text .t1-full { font-family: 'Montserrat', sans-serif; font-size: 16.5px; font-weight: 700; color: var(--texto); margin-top: 1px; }
 
-.sidebar .sidebar-pie { margin-top: auto; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.12); }
-.sidebar .sesion-usuario { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
-.sidebar .sesion-usuario strong { display: block; color: #fff; font-size: 13.5px; font-weight: 600; margin-top: 2px; }
-
-.btn-cerrar-sesion-sidebar {
-  width: 100%; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8);
-  border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; padding: 9px 12px;
-  font-size: 12.5px; font-weight: 500; text-align: left;
+.navbar-top-right { display: flex; align-items: center; gap: 16px; }
+.navbar-date { font-size: 12px; color: var(--texto-suave); font-weight: 500; white-space: nowrap; }
+.nav-user {
+  display: flex; align-items: center; gap: 9px; background: var(--dorado-suave);
+  border: 1px solid var(--borde-fuerte); border-radius: 999px; padding: 5px 14px 5px 5px;
 }
-.btn-cerrar-sesion-sidebar:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.nav-user .avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--dorado); color: var(--guinda-oscuro);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0;
+}
+.nav-user .who { line-height: 1.2; display: flex; flex-direction: column; }
+.nav-user .who strong { font-size: 12.5px; font-weight: 700; color: var(--texto); }
+.nav-user .who span { font-size: 9.5px; color: var(--texto-suave); text-transform: uppercase; letter-spacing: 0.4px; }
+.nav-logout {
+  display: inline-flex; align-items: center; gap: 7px; background: var(--guinda-profundo); color: #fff;
+  border: 1.5px solid rgba(188,149,92,0.55); padding: 9px 18px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  transition: filter .18s ease, transform .12s ease, border-color .18s ease;
+}
+.nav-logout:hover { filter: brightness(1.18); border-color: rgba(188,149,92,0.9); transform: translateY(-1px); }
+.nav-logout:active { transform: none; }
 
-.app-main { min-width: 0; }
+.navbar-menu {
+  display: flex; align-items: center; gap: 22px; padding: 0 5%;
+  background: var(--guinda-oscuro); min-height: 46px; overflow-x: auto;
+}
+.navbar-menu-label { font-size: 10.5px; font-weight: 700; letter-spacing: 1px; color: var(--dorado-suave); text-transform: uppercase; }
+.nav-link {
+  padding: 14px 1px; background: none; border: none; border-bottom: 2.5px solid transparent; border-radius: 0;
+  color: rgba(255,255,255,0.62); font-family: inherit; font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.4px; cursor: pointer; white-space: nowrap;
+  transition: color .18s ease, border-color .18s ease;
+}
+.nav-link:hover { color: #fff; }
+.nav-link.activo { color: var(--dorado); border-color: var(--dorado); }
+.nav-link:focus-visible, .nav-logout:focus-visible { outline: 2px solid var(--dorado-claro); outline-offset: 2px; }
+
+.app-main { min-width: 0; flex: 1 0 auto; }
 .contenedor { max-width: 1080px; margin: 0 auto; padding: 44px 40px 70px; }
 
 .encabezado-seccion { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; gap: 20px; flex-wrap: wrap; }
@@ -410,15 +437,19 @@ tbody tr:last-child td { border-bottom: none; }
    ====================================================== */
 
 @media (max-width: 900px) {
-  .app-shell { grid-template-columns: 1fr; }
-  .sidebar { flex-direction: row; align-items: center; padding: 14px 20px; }
-  .sidebar .marca-app { border: none; padding: 0; margin: 0; margin-right: auto; }
-  .sidebar nav, .sidebar .sidebar-pie { display: none; }
+  .navbar-date, .nav-user .who span { display: none; }
+  .brand-text .t1-full { font-size: 14px; }
   #pantalla-login.activa { grid-template-columns: 1fr; }
   .login-marca { display: none; }
 }
 
 @media (max-width: 720px) {
+  .navbar-top { flex-wrap: wrap; padding: 12px 18px; }
+  .brand-text .t0 { font-size: 9.5px; }
+  .brand-text .t1-full { font-size: 13px; }
+  .navbar-top-right { width: 100%; justify-content: space-between; gap: 10px; }
+  .nav-logout { padding: 8px 14px; }
+  .navbar-menu { padding: 0 18px; gap: 18px; }
   .fila-formulario { grid-template-columns: 1fr; }
   .resumen-grid { grid-template-columns: 1fr 1fr; }
   .contenedor { padding: 28px 18px 60px; }
