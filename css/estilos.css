@@ -802,3 +802,27 @@ tbody tr:last-child td { border-bottom: none; }
   .tc-acciones .btn { flex: 1; }
 }
 @keyframes llenarVertical { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+/* ---- Archivo del contrato ---- */
+.campo-contrato__titulo { display: block; font-size: 12.5px; font-weight: 600; color: var(--texto-suave); margin-bottom: 7px; }
+.zona-archivo {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 14px; cursor: pointer; text-align: center;
+  border: 1.5px dashed var(--borde-fuerte); border-radius: var(--radio-sm); background: #FCFAF7; color: var(--texto-suave);
+  transition: border-color .15s ease, background .15s ease;
+}
+.zona-archivo:hover, .zona-archivo:focus-within { border-color: var(--guinda); background: var(--dorado-suave); }
+.zona-archivo .ti { font-size: 26px; color: var(--guinda); }
+.zona-archivo__texto { font-size: 13.5px; font-weight: 600; color: var(--texto); overflow-wrap: anywhere; }
+.zona-archivo small { font-size: 11.5px; color: var(--texto-tenue); }
+.zona-archivo input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.zona-archivo { position: relative; }
+.bloque-archivo { margin-bottom: 24px; }
+.archivo-fila { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; background: #fff; border: 1px solid var(--borde); border-radius: var(--radio-sm); }
+.archivo-icono { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--dorado-suave); color: var(--guinda); font-size: 20px; flex-shrink: 0; }
+.archivo-info { flex: 1; min-width: 160px; display: flex; flex-direction: column; }
+.archivo-info b { font-size: 13.5px; color: var(--texto); overflow-wrap: anywhere; }
+.archivo-info small { font-size: 12px; color: var(--texto-tenue); }
+.btn-reemplazar { cursor: pointer; color: var(--guinda); flex-direction: row; gap: 6px; font-size: 12.5px; letter-spacing: 0; }
+.tc-adjunto .ti { color: var(--exito) !important; }
+.tc-sin-adjunto { color: var(--ambar); }
+.tc-sin-adjunto .ti { color: var(--ambar) !important; }

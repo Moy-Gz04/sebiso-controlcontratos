@@ -204,6 +204,7 @@ function renderTarjetaPedido(p, i) {
             <span><i class="ti ti-package"></i>${escaparHtml(p.cantidad)} ${escaparHtml(p.unidadMedida || '')}</span>
             <span><i class="ti ti-building-store"></i>${escaparHtml(p.proveedor || 'Sin proveedor')}</span>
             ${p.areaSolicitante ? `<span><i class="ti ti-users"></i>${escaparHtml(p.areaSolicitante)}</span>` : ''}
+            ${p.contrato ? `<span class="tc-adjunto"><i class="ti ti-paperclip"></i>Contrato adjunto</span>` : `<span class="tc-sin-adjunto"><i class="ti ti-alert-circle"></i>Sin archivo de contrato</span>`}
           </span>
         </span>
         <span class="tc-lado">
@@ -337,7 +338,28 @@ function renderCuerpoPedido(p) {
       <button type="button" class="btn btn-texto btn-sm" data-eliminar-pedido="${p.id}"><i class="ti ti-trash"></i> Eliminar contrato</button>
     </div>`;
 
-  return recorrido + detalle + oficiosHtml + acciones;
+  const tamano = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+  const archivo = `
+    <div class="bloque-archivo">
+      <div class="subseccion-titulo">Contrato</div>
+      ${p.contrato ? `
+        <div class="archivo-fila">
+          <span class="archivo-icono"><i class="ti ${/pdf/.test(p.contrato.mime) ? 'ti-file-type-pdf' : /image/.test(p.contrato.mime) ? 'ti-photo' : 'ti-file-type-doc'}"></i></span>
+          <span class="archivo-info"><b>${escaparHtml(p.contrato.nombre)}</b><small>${tamano(p.contrato.tamano)}</small></span>
+          <button type="button" class="btn btn-secundario btn-sm" data-ver-contrato="${p.id}"><i class="ti ti-eye"></i> Ver contrato</button>
+          <label class="btn btn-texto btn-sm btn-reemplazar"><i class="ti ti-replace"></i> Reemplazar
+            <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-contrato="${p.id}" hidden>
+          </label>
+        </div>` : `
+        <label class="zona-archivo zona-archivo--detalle">
+          <i class="ti ti-file-upload"></i>
+          <span class="zona-archivo__texto">Subir el archivo del contrato</span>
+          <small>PDF, Word o imagen · máximo 15 MB</small>
+          <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-contrato="${p.id}">
+        </label>`}
+    </div>`;
+
+  return recorrido + archivo + detalle + oficiosHtml + acciones;
 }
 
 // ---------- Panel del paso que sigue ----------

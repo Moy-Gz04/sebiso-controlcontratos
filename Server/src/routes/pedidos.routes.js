@@ -25,7 +25,7 @@ function oficioAJson(row) {
   return { id: row.id, tipo: row.tipo, folio: row.folio, monto: Number(row.monto), fecha: row.fecha };
 }
 
-function pedidoAJson(row, oficios) {
+function pedidoAJson(row, oficios, archivo) {
   return {
     id: row.id,
     producto: row.producto,
@@ -44,7 +44,8 @@ function pedidoAJson(row, oficios) {
     fechaPagado: row.fecha_pagado,
     estatus: row.estatus,
     creadoEn: row.creado_en,
-    oficios: oficios.map(oficioAJson)
+    oficios: oficios.map(oficioAJson),
+    contrato: archivo ? { nombre: archivo.nombre, mime: archivo.mime, tamano: archivo.tamano, subidoEn: archivo.subido_en } : null
   };
 }
 
@@ -52,7 +53,8 @@ async function cargarPedidoCompleto(id) {
   const { rows: pedidoRows } = await db.query('SELECT * FROM pedidos WHERE id = $1', [id]);
   if (pedidoRows.length === 0) return null;
   const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios WHERE pedido_id = $1 ORDER BY id', [id]);
-  return pedidoAJson(pedidoRows[0], oficios);
+  const { rows: archivos } = await db.query('SELECT nombre, mime, tamano, subido_en FROM pedido_archivos WHERE pedido_id = $1', [id]);
+  return pedidoAJson(pedidoRows[0], oficios, archivos[0]);
 }
 
 function validarPasoAnterior(estatusActual, pasoEsperado, res) {
@@ -72,7 +74,8 @@ router.get('/', async (req, res) => {
   try {
     const { rows: pedidos } = await db.query('SELECT * FROM pedidos ORDER BY id DESC');
     const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios ORDER BY id');
-    const resultado = pedidos.map(p => pedidoAJson(p, oficios.filter(o => o.pedido_id === p.id)));
+    const { rows: archivos } = await db.query('SELECT pedido_id, nombre, mime, tamano, subido_en FROM pedido_archivos');
+    const resultado = pedidos.map(p => pedidoAJson(p, oficios.filter(o => o.pedido_id === p.id), archivos.find(a => a.pedido_id === p.id)));
     res.json({ ok: true, pedidos: resultado });
   } catch (error) {
     console.error('Error en GET /api/pedidos:', error);
@@ -98,6 +101,54 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error en POST /api/pedidos:', error);
     res.status(500).json({ ok: false, mensaje: 'Error al crear el pedido' });
+  }
+});
+
+// ---------- Archivo del contrato (subir / reemplazar y ver) ----------
+
+const MIMES_CONTRATO = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg', 'image/png', 'image/webp'
+];
+const MAX_CONTRATO = 15 * 1024 * 1024;   // 15 MB
+
+router.put('/:id/contrato', async (req, res) => {
+  const id = Number(req.params.id);
+  const { nombre, mime, base64 } = req.body || {};
+  if (!nombre || !mime || !base64) return res.status(400).json({ ok: false, mensaje: 'Falta el archivo del contrato' });
+  if (!MIMES_CONTRATO.includes(mime)) return res.status(400).json({ ok: false, mensaje: 'El contrato debe ser PDF, Word o imagen' });
+  const datos = Buffer.from(base64, 'base64');
+  if (datos.length === 0) return res.status(400).json({ ok: false, mensaje: 'El archivo está vacío' });
+  if (datos.length > MAX_CONTRATO) return res.status(413).json({ ok: false, mensaje: 'El archivo pesa más de 15 MB' });
+  try {
+    const { rows: existe } = await db.query('SELECT id FROM pedidos WHERE id = $1', [id]);
+    if (existe.length === 0) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
+    await db.query(
+      `INSERT INTO pedido_archivos (pedido_id, nombre, mime, tamano, datos) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (pedido_id) DO UPDATE SET nombre = EXCLUDED.nombre, mime = EXCLUDED.mime,
+         tamano = EXCLUDED.tamano, datos = EXCLUDED.datos, subido_en = now()`,
+      [id, String(nombre).slice(0, 200), mime, datos.length, datos]
+    );
+    const pedido = await cargarPedidoCompleto(id);
+    res.json({ ok: true, pedido });
+  } catch (error) {
+    console.error('Error en PUT /contrato:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al guardar el archivo del contrato' });
+  }
+});
+
+router.get('/:id/contrato', async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT nombre, mime, datos FROM pedido_archivos WHERE pedido_id = $1', [Number(req.params.id)]);
+    if (rows.length === 0) return res.status(404).json({ ok: false, mensaje: 'Este contrato no tiene archivo' });
+    res.setHeader('Content-Type', rows[0].mime);
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(rows[0].nombre)}`);
+    res.send(rows[0].datos);
+  } catch (error) {
+    console.error('Error en GET /contrato:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al leer el archivo del contrato' });
   }
 });
 

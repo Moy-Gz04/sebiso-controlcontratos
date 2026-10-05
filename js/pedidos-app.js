@@ -45,6 +45,28 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  // Archivo del contrato: ver y subir / reemplazar
+  contenedor.querySelectorAll('[data-ver-contrato]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try { await StorePedidos.abrirContrato(Number(btn.dataset.verContrato)); }
+      catch (err) { mostrarAviso(err.message, true); }
+    });
+  });
+  contenedor.querySelectorAll('[data-subir-contrato]').forEach(input => {
+    input.addEventListener('change', async () => {
+      const archivo = input.files[0];
+      if (!archivo) return;
+      const id = Number(input.dataset.subirContrato);
+      try {
+        mostrarAviso('Subiendo contrato…');
+        await StorePedidos.subirContrato(id, archivo);
+        tarjetasPedidoExpandidas.add(id);
+        await renderListadoPedidos();
+        mostrarAviso('Contrato guardado.');
+      } catch (err) { mostrarAviso(err.message, true); }
+    });
+  });
+
   contenedor.querySelectorAll('[data-eliminar-pedido]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.eliminarPedido);

@@ -98,3 +98,14 @@ FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
 -- ---------------------------------------------------------
 INSERT INTO usuarios (usuario, password_hash)
 VALUES ('admin', crypt('admin123', gen_salt('bf')));
+-- Archivo del contrato (PDF, Word o imagen) ligado a cada pedido/contrato.
+-- Se guarda en la base (no en el disco de Render, que se borra al desplegar).
+CREATE TABLE IF NOT EXISTS pedido_archivos (
+  id          SERIAL PRIMARY KEY,
+  pedido_id   INTEGER NOT NULL UNIQUE REFERENCES pedidos(id) ON DELETE CASCADE,
+  nombre      TEXT NOT NULL,
+  mime        TEXT NOT NULL,
+  tamano      INTEGER NOT NULL,
+  datos       BYTEA NOT NULL,
+  subido_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
