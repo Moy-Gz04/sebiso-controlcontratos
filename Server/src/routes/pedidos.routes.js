@@ -112,7 +112,7 @@ const MIMES_CONTRATO = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'image/jpeg', 'image/png', 'image/webp'
 ];
-const MAX_CONTRATO = 15 * 1024 * 1024;   // 15 MB
+const MAX_CONTRATO = 30 * 1024 * 1024;   // 30 MB
 
 router.put('/:id/contrato', async (req, res) => {
   const id = Number(req.params.id);
@@ -121,7 +121,7 @@ router.put('/:id/contrato', async (req, res) => {
   if (!MIMES_CONTRATO.includes(mime)) return res.status(400).json({ ok: false, mensaje: 'El contrato debe ser PDF, Word o imagen' });
   const datos = Buffer.from(base64, 'base64');
   if (datos.length === 0) return res.status(400).json({ ok: false, mensaje: 'El archivo está vacío' });
-  if (datos.length > MAX_CONTRATO) return res.status(413).json({ ok: false, mensaje: 'El archivo pesa más de 15 MB' });
+  if (datos.length > MAX_CONTRATO) return res.status(413).json({ ok: false, mensaje: 'El archivo pesa más de 30 MB' });
   try {
     const { rows: existe } = await db.query('SELECT id FROM pedidos WHERE id = $1', [id]);
     if (existe.length === 0) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });

@@ -354,7 +354,7 @@ function renderCuerpoPedido(p) {
         <label class="zona-archivo zona-archivo--detalle">
           <i class="ti ti-file-upload"></i>
           <span class="zona-archivo__texto">Subir el archivo del contrato</span>
-          <small>PDF, Word o imagen · máximo 15 MB</small>
+          <small>PDF, Word o imagen · máximo 30 MB</small>
           <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-contrato="${p.id}">
         </label>`}
     </div>`;

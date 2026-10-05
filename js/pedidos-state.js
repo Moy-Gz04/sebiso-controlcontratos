@@ -17,7 +17,7 @@ function calcularMontoDisponiblePedido(pedido) {
   return pedido.oficio.monto + ajustes;
 }
 
-const MAX_CONTRATO_MB = 15;
+const MAX_CONTRATO_MB = 30;
 
 function archivoABase64(archivo) {
   return new Promise((resolve, reject) => {
