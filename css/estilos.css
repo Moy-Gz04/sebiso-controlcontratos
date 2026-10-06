@@ -911,3 +911,15 @@ tbody tr:last-child td { border-bottom: none; }
   .form-avance-factura { flex-wrap: wrap; }
   .form-avance-factura input[type="date"] { flex: 1; width: auto; }
 }
+/* Ajustes: columnas alineadas entre facturas, chips en una línea, sin subrayados */
+.factura-item { grid-template-columns: minmax(0, 1.5fr) 120px 128px 190px minmax(0, 1fr) 32px; }
+.factura-item:not(:has(.btn-icono)) { grid-template-columns: minmax(0, 1.5fr) 120px 128px 190px minmax(0, 1fr); }
+.fi-monto { text-align: right; }
+.fi-estado { justify-self: start; }
+.fi-accion { justify-self: end; }
+label.chip-doc { display: inline-flex !important; flex-direction: row !important; margin: 0 !important; font-size: 12px !important; font-weight: 600 !important; color: var(--texto-suave) !important; }
+.ir-facturas, .ir-facturas:hover { text-decoration: none !important; }
+@media (max-width: 1000px) {
+  .factura-item, .factura-item:not(:has(.btn-icono)) { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .fi-docs, .fi-accion { grid-column: 1 / -1; justify-self: start; }
+}
