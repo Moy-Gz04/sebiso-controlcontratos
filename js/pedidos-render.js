@@ -281,8 +281,9 @@ function renderCuerpoPedido(p) {
     <ol class="recorrido" style="--avance:${idxActual / (PASOS_PEDIDO.length - 1)}">
       ${PASOS_PEDIDO.map((paso, i) => {
         const omitido = pasoOmitido(p, paso.clave);
-        const estado = omitido ? 'omitido' : i < idxActual ? 'hecho' : i === idxActual ? 'actual' : 'pendiente';
-        const icono = omitido ? 'ti-minus' : (i < idxActual || (i === idxActual && p.estatus === 'pagado')) ? 'ti-check' : paso.icono;
+        // "estatus" es el último paso ya registrado: lo de antes está hecho y el siguiente es el actual
+        const estado = omitido ? 'omitido' : i <= idxActual ? 'hecho' : i === idxActual + 1 ? 'actual' : 'pendiente';
+        const icono = omitido ? 'ti-minus' : i <= idxActual ? 'ti-check' : paso.icono;
         return `
           <li class="rec-paso ${estado}" style="--j:${i}">
             <span class="rec-circulo"><i class="ti ${icono}"></i></span>
