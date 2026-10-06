@@ -49,6 +49,11 @@ async function api(metodo, ruta, cuerpo, tipo = 'application/json') {
 
     r = await api('PUT', `/pedidos/${A}/factura`, { noFactura: 'F-1', fecha: '2026-10-06', descripcion: 'Servicio de prueba', monto: 47000 });
     check(r.ok && r.pedido.factura.descripcion === 'Servicio de prueba', 'factura 47,000 con descripción');
+    r = await api('PUT', `/pedidos/${A}/documento-factura`, Buffer.from('%PDF-1.4 fac'), 'application/pdf');
+    check(r.ok && r.pedido.documentoFactura, 'sube el PDF de la factura');
+    const enlF = await api('POST', `/pedidos/${A}/enlace/documento-factura`);
+    const fF = await fetch(API + enlF.ruta);
+    check(fF.ok && (await fF.text()).startsWith('%PDF'), 'abre la factura con enlace temporal');
 
     r = await api('PUT', `/pedidos/${A}/reduccion`, { montoEjercido: 99999 });
     check(r.status === 400, 'reducción mayor al autorizado → 400: ' + r.mensaje);

@@ -61,7 +61,8 @@ function pedidoAJson(row, oficios, archivos = []) {
     contrato: archivoAJson(archivos.find(a => a.tipo === 'contrato')),
     documentoEntrega: archivoAJson(archivos.find(a => a.tipo === 'entrega')),
     documentoAutorizacion: archivoAJson(archivos.find(a => a.tipo === 'autorizacion')),
-    documentoContrarecibo: archivoAJson(archivos.find(a => a.tipo === 'contrarecibo'))
+    documentoContrarecibo: archivoAJson(archivos.find(a => a.tipo === 'contrarecibo')),
+    documentoFactura: archivoAJson(archivos.find(a => a.tipo === 'factura'))
   };
 }
 
@@ -135,9 +136,10 @@ const RUTAS_ARCHIVO = {
   'contrato': 'contrato',
   'documento-entrega': 'entrega',
   'documento-autorizacion': 'autorizacion',
-  'documento-contrarecibo': 'contrarecibo'
+  'documento-contrarecibo': 'contrarecibo',
+  'documento-factura': 'factura'
 };
-const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarecibo' };
+const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarecibo', factura: 'Factura' };
 
 // tipo: 'contrato' (archivo del contrato) o 'entrega' (documento de la entrega, opcional).
 // El archivo llega tal cual en el cuerpo (no en JSON) y se pasa por partes a

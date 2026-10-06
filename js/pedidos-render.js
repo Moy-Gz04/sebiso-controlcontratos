@@ -392,6 +392,7 @@ function renderCuerpoPedido(p) {
     bloqueDocumento(p, 'Contrato', p.contrato, 'contrato', 'Subir el archivo del contrato'),
     p.autorizacion ? bloqueDocumento(p, 'Oficio de autorización', p.documentoAutorizacion, 'documento-autorizacion', 'Adjuntar el oficio de autorización') : '',
     p.contrarecibo ? bloqueDocumento(p, 'Contrarrecibo', p.documentoContrarecibo, 'documento-contrarecibo', 'Adjuntar el contrarrecibo') : '',
+    p.factura ? bloqueDocumento(p, 'Factura', p.documentoFactura, 'documento-factura', 'Adjuntar la factura') : '',
     p.fechaEntrega && idxActual >= indicePaso('entregado') ? bloqueDocumento(p, 'Documento de entrega', p.documentoEntrega, 'documento-entrega', 'Adjuntar documento de entrega (opcional)') : ''
   ].join('');
 
@@ -521,7 +522,7 @@ function renderPanelAccionPedido(p, idxActual) {
 
     case 'adecuacion':
       return panel({
-        titulo: 'Factura', ruta: 'factura', boton: 'Registrar factura',
+        titulo: 'Factura', ruta: 'factura', doc: 'documento-factura', boton: 'Registrar factura',
         ayuda: `La factura del proveedor. Autorizado vigente: ${fmtMoneda.format(m.autorizado)}.`,
         campos: `
           <div class="fila-formulario">
@@ -537,7 +538,8 @@ function renderPanelAccionPedido(p, idxActual) {
           </label>
           <label>Monto
             <input type="number" name="monto" step="0.01" min="0.01" value="${valor(m.autorizado)}" required>
-          </label>`
+          </label>
+          ${campoDocumento('Adjuntar la factura')}`
       });
 
     case 'factura_recibida':
