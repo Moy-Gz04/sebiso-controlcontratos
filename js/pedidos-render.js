@@ -8,6 +8,7 @@
 
 let pedidosCache = [];
 const tarjetasPedidoExpandidas = new Set();
+const tarjetasMontosAbiertas = new Set();   // "Cantidades del contrato" desplegadas
 let filtroEtapa = '';          // '' = todas las etapas
 let ultimaTarjetaAbierta = null; // para animar solo la que se acaba de abrir
 let animarEntrada = true;      // la entrada escalonada solo al cargar o filtrar
@@ -18,7 +19,7 @@ const PASOS_PEDIDO = [
   { clave: 'contrarecibo',      label: 'Contrarrecibo',            corto: 'Contrarrecibo', icono: 'ti-receipt-2' },
   { clave: 'adecuacion',        label: 'Oficio de adecuación',     corto: 'Adecuación',    icono: 'ti-adjustments-dollar', opcional: true },
   { clave: 'factura_recibida',  label: 'Facturas',                 corto: 'Facturas',      icono: 'ti-receipt' },
-  { clave: 'reduccion',         label: 'Reducción',                corto: 'Reducción',     icono: 'ti-arrow-down-circle', opcional: true },
+  { clave: 'reduccion',         label: 'Reducción líquida',                corto: 'Reducción',     icono: 'ti-arrow-down-circle', opcional: true },
   { clave: 'entregado',         label: 'Entrega',                  corto: 'Entrega',       icono: 'ti-truck-delivery', opcional: true },
   { clave: 'en_contabilidad',   label: 'Contabilidad',             corto: 'Contabilidad',  icono: 'ti-calculator' },
   { clave: 'en_pago',           label: 'Proceso de pago',          corto: 'En pago',       icono: 'ti-cash' },
@@ -31,7 +32,7 @@ const SIGUIENTE_PASO = {
   oficio_autorizado: 'Registrar el contrarrecibo',
   contrarecibo: 'Oficio de adecuación (opcional)',
   adecuacion: 'Registrar la primera factura',
-  factura_recibida: 'Reducción (opcional)',
+  factura_recibida: 'Reducción líquida (opcional)',
   reduccion: 'Entrega (opcional)',
   entregado: 'Seguimiento de facturas en contabilidad',
   en_contabilidad: 'Seguimiento de pagos de facturas',
@@ -70,7 +71,6 @@ function montoDe(p) {
 // Qué representa el monto que se muestra en la tarjeta
 function etiquetaMontoDe(p) {
   const m = montosDelContrato(p);
-  if (m.ejercido !== null) return 'Ejercido';
   if (m.autorizado !== null) return 'Autorizado';
   return 'Contratado';
 }
@@ -254,21 +254,21 @@ function renderMontosContrato(p) {
   const m = montosDelContrato(p);
   const fila = (etiqueta, valor, nota = '', clase = '') => `
     <div class="${clase}"><span>${etiqueta}${nota ? `<small>${nota}</small>` : ''}</span><b>${valor === null ? '<em>Pendiente</em>' : fmtMoneda.format(valor)}</b></div>`;
-  const ajustes = (p.oficios || []).length;
-  const notaAut = p.oficio ? 'según oficio de adecuación' : (p.autorizacion ? 'según oficio de autorización' : '');
+  const ajustes = (p.oficios || []).filter(of => !!of.posteriorReduccion === !!p.reduccion).length;
+  const notaAut = p.reduccion ? 'según reducción líquida' : p.oficio ? 'según oficio de adecuación' : (p.autorizacion ? 'según oficio de autorización' : '');
   const avisos = [];
   if (m.disponible !== null && m.facturado > m.disponible + 0.005) avisos.push('Lo facturado es mayor al monto disponible.');
   if (m.contrarecibo !== null && m.autorizado !== null && Math.abs(m.contrarecibo - m.autorizado) > 0.005) avisos.push(`El contrarrecibo difiere del autorizado por ${fmtMoneda.format(Math.abs(m.contrarecibo - m.autorizado))}.`);
   return `
     <div class="montos-mini montos-contrato">
       ${fila('Contratado', m.contratado, 'monto del contrato')}
+      ${m.autorizadoPrevio !== null ? fila('Autorizado antes de la reducción', m.autorizadoPrevio, 'reemplazado por la reducción líquida', 'previo') : ''}
       ${fila('Autorizado vigente', m.autorizado, notaAut + (ajustes ? ` · ${ajustes} ajuste${ajustes > 1 ? 's' : ''}` : ''))}
       ${fila('Contrarrecibo', m.contrarecibo)}
       ${fila('Facturado', m.numFacturas ? m.facturado : null, m.numFacturas ? m.numFacturas + ' factura' + (m.numFacturas > 1 ? 's' : '') : '')}
       ${m.numFacturas ? fila('Pagado', m.pagado) : ''}
       ${m.porFacturar !== null && m.numFacturas ? fila('Por facturar', m.porFacturar, m.porFacturar > 0.005 ? 'aún se pueden registrar facturas' : 'facturación completa', m.porFacturar > 0.005 ? 'pendiente' : 'completo') : ''}
-      ${m.ejercido !== null ? fila('Reducción', -m.reduccion, 'sobrante que se libera', 'reduccion') : ''}
-      ${fila(m.ejercido !== null ? 'Ejercido (final)' : 'Monto vigente', m.vigente, m.ejercido !== null ? 'lo que realmente se gastó' : '', 'total')}
+      ${fila('Monto vigente', m.vigente, '', 'total')}
     </div>
     ${avisos.map(a => `<p class="aviso-monto"><i class="ti ti-alert-triangle"></i>${a}</p>`).join('')}`;
 }
@@ -277,6 +277,7 @@ function renderMontosContrato(p) {
 
 function renderCuerpoPedido(p) {
   const idxActual = indicePaso(p.estatus);
+  const mRec = montosDelContrato(p);
 
   const recorrido = `
     <div class="subseccion-titulo">Recorrido del contrato</div>
@@ -284,12 +285,14 @@ function renderCuerpoPedido(p) {
       ${PASOS_PEDIDO.map((paso, i) => {
         const omitido = pasoOmitido(p, paso.clave);
         // "estatus" es el último paso ya registrado: lo de antes está hecho y el siguiente es el actual
-        const estado = omitido ? 'omitido' : i <= idxActual ? 'hecho' : i === idxActual + 1 ? 'actual' : 'pendiente';
-        const icono = omitido ? 'ti-minus' : i <= idxActual ? 'ti-check' : paso.icono;
+        // Facturas ya iniciadas pero sin cubrir el saldo: en lugar de palomita, alerta roja que parpadea
+        const faltanFacturas = paso.clave === 'factura_recibida' && i <= idxActual && mRec.porFacturar !== null && mRec.porFacturar > 0.005;
+        const estado = faltanFacturas ? 'faltan' : omitido ? 'omitido' : i <= idxActual ? 'hecho' : i === idxActual + 1 ? 'actual' : 'pendiente';
+        const icono = faltanFacturas ? 'ti-alert-triangle' : omitido ? 'ti-minus' : i <= idxActual ? 'ti-check' : paso.icono;
         return `
-          <li class="rec-paso ${estado}" style="--j:${i}">
+          <li class="rec-paso ${estado}" style="--j:${i}" ${faltanFacturas ? `title="Faltan ${fmtMoneda.format(mRec.porFacturar)} por facturar"` : ''}>
             <span class="rec-circulo"><i class="ti ${icono}"></i></span>
-            <span class="rec-label">${paso.label}${paso.opcional ? `<small>${omitido ? 'omitido' : 'opcional'}</small>` : ''}</span>
+            <span class="rec-label">${paso.label}${faltanFacturas ? `<small>faltan facturas</small>` : paso.opcional ? `<small>${omitido ? 'omitido' : 'opcional'}</small>` : ''}</span>
           </li>`;
       }).join('')}
     </ol>
@@ -309,7 +312,7 @@ function renderCuerpoPedido(p) {
       f.fechaInicioPago && { fecha: f.fechaInicioPago, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' en pago', detalle: '' },
       f.fechaPagado && { fecha: f.fechaPagado, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' pagada', detalle: fmtMoneda.format(f.monto), destacado: true }
     ]).filter(Boolean),
-    p.reduccion && { fecha: p.reduccion.fecha, titulo: 'Reducción', detalle: `Se ejerció ${fmtMoneda.format(p.reduccion.montoEjercido)}${m.reduccion !== null ? ` · se liberan ${fmtMoneda.format(m.reduccion)}` : ''}`, destacado: true },
+    p.reduccion && { fecha: p.reduccion.fecha, titulo: 'Reducción líquida', detalle: `El autorizado queda en ${fmtMoneda.format(p.reduccion.montoEjercido)}${m.autorizadoPrevio !== null ? ` (antes ${fmtMoneda.format(m.autorizadoPrevio)})` : ''}`, destacado: true },
     p.fechaEntrega && indicePaso(p.estatus) >= indicePaso('entregado') && { fecha: p.fechaEntrega, titulo: 'Entrega', detalle: 'El proveedor entregó el bien o servicio' },
     p.estatus === 'pagado' && p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Contrato pagado', detalle: 'Proceso concluido', destacado: true }
   ].filter(Boolean).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
@@ -330,8 +333,6 @@ function renderCuerpoPedido(p) {
       </section>
       <section>
         ${renderPanelAccionPedido(p, idxActual)}
-        <div class="subseccion-titulo subseccion-montos">Cantidades del contrato</div>
-        ${renderMontosContrato(p)}
       </section>
     </div>
   `;
@@ -398,11 +399,22 @@ function renderCuerpoPedido(p) {
     p.autorizacion ? bloqueDocumento(p, 'Oficio de autorización', p.documentoAutorizacion, 'documento-autorizacion', 'Adjuntar el oficio de autorización') : '',
     p.contrarecibo ? bloqueDocumento(p, 'Contrarrecibo', p.documentoContrarecibo, 'documento-contrarecibo', 'Adjuntar el contrarrecibo') : '',
     p.oficio ? bloqueDocumento(p, 'Oficio de adecuación', p.documentoAdecuacion, 'documento-adecuacion', 'Adjuntar el oficio de adecuación') : '',
-    p.reduccion ? bloqueDocumento(p, 'Reducción', p.documentoReduccion, 'documento-reduccion', 'Adjuntar el documento de la reducción') : '',
+    p.reduccion ? bloqueDocumento(p, 'Reducción líquida', p.documentoReduccion, 'documento-reduccion', 'Adjuntar el documento de la reducción líquida') : '',
     p.fechaEntrega && idxActual >= indicePaso('entregado') ? bloqueDocumento(p, 'Documento de entrega', p.documentoEntrega, 'documento-entrega', 'Adjuntar documento de entrega (opcional)') : ''
   ].join('');
 
-  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + oficiosHtml + acciones;
+  // Cantidades del contrato: al final y plegadas; se abren al tocar el encabezado
+  const mm = montosDelContrato(p);
+  const cantidades = `
+    <details class="detalle-montos" ${tarjetasMontosAbiertas.has(p.id) ? 'open' : ''} data-montos-id="${p.id}">
+      <summary>
+        <span class="dm-titulo"><i class="ti ti-chevron-right"></i> Cantidades del contrato</span>
+        <span class="dm-resumen">Vigente <b>${fmtMoneda.format(mm.vigente)}</b>${mm.numFacturas ? ` · facturado ${fmtMoneda.format(mm.facturado)}` : ''}</span>
+      </summary>
+      ${renderMontosContrato(p)}
+    </details>`;
+
+  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + oficiosHtml + cantidades + acciones;
 }
 
 const tamanoArchivo = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
@@ -551,10 +563,10 @@ function renderPanelAccionPedido(p, idxActual) {
 
     case 'factura_recibida':
       return panel({
-        titulo: 'Reducción', ruta: 'reduccion', doc: 'documento-reduccion', boton: 'Registrar reducción', opcional: true,
-        ayuda: `Si no se ocupó todo lo autorizado (${fmtMoneda.format(m.autorizado)}), indica cuánto se gastó y el sobrante se reduce. No puede ser menor a lo ya facturado (${fmtMoneda.format(m.facturado)}). Las facturas que falten se pueden seguir registrando.`,
+        titulo: 'Reducción líquida', ruta: 'reduccion', doc: 'documento-reduccion', boton: 'Registrar reducción líquida', opcional: true,
+        ayuda: `La reducción líquida reemplaza el autorizado vigente (hoy ${fmtMoneda.format(m.autorizado)}) por lo que realmente se ocupó. No puede ser menor a lo ya facturado (${fmtMoneda.format(m.facturado)}). Las ampliaciones o cancelaciones que se registren después se aplicarán sobre este nuevo monto.`,
         campos: `
-          <label>¿Cuánto se gastó del total autorizado?
+          <label>¿Cuánto se gastó del total autorizado? (nuevo autorizado)
             <input type="number" name="montoEjercido" step="0.01" min="${valor(Math.max(0.01, m.facturado))}" max="${valor(m.autorizado)}" value="${valor(m.facturado)}" data-autorizado="${valor(m.autorizado)}" data-facturado="${valor(m.facturado)}" required>
           </label>
           <p class="calculo-reduccion" data-calculo-reduccion>${m.facturado !== null && m.autorizado !== null ? `Reducción: ${fmtMoneda.format(m.autorizado - m.facturado)} · el contrato queda en ${fmtMoneda.format(m.facturado)}` : ''}</p>
@@ -663,7 +675,7 @@ function renderFacturas(p, idxActual) {
 
   return `
     <div class="bloque-facturas" id="facturas-${p.id}">
-      <div class="subseccion-titulo">Facturas <span class="facturas-resumen">${m.numFacturas} · ${fmtMoneda.format(m.facturado)} facturado${m.disponible !== null ? ' de ' + fmtMoneda.format(m.disponible) : ''}</span></div>
+      <div class="subseccion-titulo">Facturas ${m.porFacturar !== null && m.porFacturar > 0.005 && (p.facturas || []).length ? `<span class="alerta-faltan" role="status"><i class="ti ti-alert-triangle"></i>Faltan ${fmtMoneda.format(m.porFacturar)} por facturar</span>` : ""}<span class="facturas-resumen">${m.numFacturas} · ${fmtMoneda.format(m.facturado)} facturado${m.disponible !== null ? ' de ' + fmtMoneda.format(m.disponible) : ''}</span></div>
       ${filas ? `<ul class="lista-facturas">${filas}</ul>` : '<p class="texto-suave">Aún no hay facturas.</p>'}
       ${formNueva}
     </div>`;

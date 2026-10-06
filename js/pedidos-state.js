@@ -12,10 +12,15 @@ const ORDEN_PASOS_PEDIDO = [
 
 // Monto autorizado vigente: el del oficio de adecuación si lo hay, si no el
 // del oficio de autorización; más ampliaciones y menos cancelaciones.
-function calcularMontoDisponiblePedido(pedido) {
-  const base = pedido.oficio ? pedido.oficio.monto : (pedido.autorizacion ? pedido.autorizacion.monto : null);
+// La reducción líquida NO suma ni resta: reemplaza el autorizado. Los oficios de
+// ampliación/cancelación posteriores a ella se aplican sobre su monto; los
+// anteriores quedan absorbidos.
+function calcularMontoDisponiblePedido(pedido, ignorarReduccion = false) {
+  const conReduccion = !!pedido.reduccion && !ignorarReduccion;
+  const base = conReduccion ? pedido.reduccion.montoEjercido
+    : pedido.oficio ? pedido.oficio.monto : (pedido.autorizacion ? pedido.autorizacion.monto : null);
   if (base === null) return null; // aún no hay monto autorizado, solo el del contrato
-  const ajustes = (pedido.oficios || []).reduce((total, of) => {
+  const ajustes = (pedido.oficios || []).filter(of => !!of.posteriorReduccion === conReduccion).reduce((total, of) => {
     return of.tipo === 'cancelacion' ? total - Number(of.monto) : total + Number(of.monto);
   }, 0);
   return base + ajustes;
@@ -28,8 +33,10 @@ function montosDelContrato(p) {
   const facturado = facturas.reduce((t, f) => t + Number(f.monto), 0);
   const pagado = facturas.filter(f => f.estado === 'pagada').reduce((t, f) => t + Number(f.monto), 0);
   const ejercido = p.reduccion ? p.reduccion.montoEjercido : null;
-  // Lo que se puede facturar: lo ejercido tras la reducción o, si no hay, el autorizado vigente
-  const disponible = ejercido !== null ? ejercido : autorizado;
+  // Autorizado que había antes de la reducción líquida (solo como referencia)
+  const autorizadoPrevio = p.reduccion ? calcularMontoDisponiblePedido(p, true) : null;
+  // Lo que se puede facturar: el autorizado vigente (ya actualizado por la reducción si la hay)
+  const disponible = autorizado;
   return {
     contratado: Number(p.montoEstimado || 0),
     autorizado,
@@ -40,10 +47,11 @@ function montosDelContrato(p) {
     disponible,
     porFacturar: disponible !== null ? Math.max(0, Math.round((disponible - facturado) * 100) / 100) : null,
     ejercido,
-    // lo que se libera con la reducción (autorizado − ejercido)
-    reduccion: ejercido !== null && autorizado !== null ? autorizado - ejercido : null,
+    autorizadoPrevio,
+    // cuánto cambió el autorizado con la reducción líquida
+    reduccion: ejercido !== null && autorizadoPrevio !== null ? autorizadoPrevio - ejercido : null,
     // el monto que manda en este momento
-    vigente: ejercido !== null ? ejercido : autorizado !== null ? autorizado : Number(p.montoEstimado || 0)
+    vigente: autorizado !== null ? autorizado : Number(p.montoEstimado || 0)
   };
 }
 

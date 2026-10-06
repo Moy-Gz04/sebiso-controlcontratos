@@ -76,6 +76,15 @@ const hoy = '2026-10-06';
     check(r.ok && r.pedido.estatus === 'pagado', 'con todo facturado y pagado el contrato queda PAGADO');
     r = await api('DELETE', `/pedidos/${A}/facturas/${F2}`);
     check(r.status === 409, 'no deja borrar una factura pagada');
+
+    // La reducción líquida reemplaza el autorizado: una ampliación posterior se suma a ella
+    r = await api('POST', `/pedidos/${A}/oficios`, { tipo: 'ampliacion', folio: 'AMP-2', monto: 1000, fecha: hoy });
+    check(r.ok && r.pedido.oficios.find(o => o.folio === 'AMP-2').posteriorReduccion === true, 'ampliación después de la reducción queda marcada como posterior');
+    check(r.pedido.estatus === 'en_pago', 'con +1,000 sobre la reducción se reabre el saldo (contrato vuelve a en pago)');
+    r = await api('POST', `/pedidos/${A}/facturas`, { noFactura: 'F-3', fecha: hoy, descripcion: 'x', monto: 1000.01 });
+    check(r.status === 400, 'solo deja facturar 1,000 más (47,000 + 1,000 − 47,000 facturado)');
+    r = await api('POST', `/pedidos/${A}/facturas`, { noFactura: 'F-3', fecha: hoy, descripcion: 'Ampliación', monto: 1000 });
+    check(r.ok, 'factura de 1,000 por la ampliación');
     const enl = await api('POST', `/pedidos/${A}/enlace/documento-pago-${F1}`);
     const f = await fetch(API + enl.ruta);
     check(f.ok && (await f.text()).startsWith('%PDF'), 'abre el comprobante con enlace temporal');
@@ -106,7 +115,7 @@ const hoy = '2026-10-06';
 
     r = await api('GET', '/pedidos');
     const a = r.pedidos.find(p => p.id === A);
-    check(a && a.facturas.length === 2 && a.documentoReduccion && a.documentoAdecuacion, 'el listado trae facturas y documentos');
+    check(a && a.facturas.length === 3 && a.documentoReduccion && a.documentoAdecuacion, 'el listado trae facturas y documentos');
   } catch (e) {
     fallas++; console.log('  ✘ ERROR', e.message);
   } finally {

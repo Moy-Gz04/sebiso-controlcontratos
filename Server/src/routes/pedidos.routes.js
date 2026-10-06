@@ -30,7 +30,7 @@ const ORDEN_ESTATUS = [
 ];
 
 function oficioAJson(row) {
-  return { id: row.id, tipo: row.tipo, folio: row.folio, monto: Number(row.monto), fecha: row.fecha };
+  return { id: row.id, tipo: row.tipo, folio: row.folio, monto: Number(row.monto), fecha: row.fecha, posteriorReduccion: !!row.posterior_reduccion };
 }
 
 const archivoAJson = a => a ? { nombre: a.nombre, mime: a.mime, tamano: a.tamano, subidoEn: a.subido_en } : null;
@@ -269,8 +269,7 @@ const fecha = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v 
 
 // Monto disponible: lo ejercido tras la reducción o, si no hay, el autorizado vigente
 async function montoDisponible(id, row) {
-  if (row.reduccion_monto !== null && row.reduccion_monto !== undefined) return Number(row.reduccion_monto);
-  return autorizadoVigente(id, row);
+  return autorizadoVigente(id, row);   // ya considera la reducción líquida
 }
 async function totalFacturado(id, excepto = 0) {
   const { rows } = await db.query('SELECT COALESCE(SUM(monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2', [id, excepto]);
@@ -278,10 +277,17 @@ async function totalFacturado(id, excepto = 0) {
 }
 
 // Monto autorizado vigente: adecuación (si hay) o autorización, más ampliaciones y menos cancelaciones
+// La reducción líquida NO suma ni resta: REEMPLAZA el autorizado. Desde ese
+// momento las ampliaciones/cancelaciones nuevas se aplican sobre ella; las
+// anteriores quedan absorbidas en la reducción.
 async function autorizadoVigente(id, row) {
-  const base = row.oficio_monto !== null ? Number(row.oficio_monto) : (row.aut_monto !== null ? Number(row.aut_monto) : null);
+  const conReduccion = row.reduccion_monto !== null && row.reduccion_monto !== undefined;
+  const base = conReduccion ? Number(row.reduccion_monto)
+    : row.oficio_monto !== null ? Number(row.oficio_monto) : (row.aut_monto !== null ? Number(row.aut_monto) : null);
   if (base === null) return null;
-  const { rows } = await db.query(`SELECT COALESCE(SUM(CASE WHEN tipo='ampliacion' THEN monto ELSE -monto END),0) AS ajuste FROM pedido_oficios WHERE pedido_id=$1`, [id]);
+  const { rows } = await db.query(
+    `SELECT COALESCE(SUM(CASE WHEN tipo='ampliacion' THEN monto ELSE -monto END),0) AS ajuste
+       FROM pedido_oficios WHERE pedido_id=$1 AND posterior_reduccion = $2`, [id, conReduccion]);
   return base + Number(rows[0].ajuste);
 }
 
@@ -487,7 +493,10 @@ router.post('/:id/oficios', async (req, res) => {
     if (ORDEN_ESTATUS.indexOf(actual.rows[0].estatus) < ORDEN_ESTATUS.indexOf('oficio_autorizado')) {
       return res.status(409).json({ ok: false, mensaje: 'Primero registra el oficio de autorización.' });
     }
-    await db.query(`INSERT INTO pedido_oficios (pedido_id, tipo, folio, monto, fecha) VALUES ($1,$2,$3,$4,$5)`, [id, tipo, folio, monto, f]);
+    // Si ya hay reducción líquida, el ajuste se aplica sobre ella
+    await db.query(
+      `INSERT INTO pedido_oficios (pedido_id, tipo, folio, monto, fecha, posterior_reduccion)
+       SELECT $1,$2,$3,$4,$5, (reduccion_monto IS NOT NULL) FROM pedidos WHERE id=$1`, [id, tipo, folio, monto, f]);
     await recalcularEstatus(id);
     res.status(201).json({ ok: true, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {

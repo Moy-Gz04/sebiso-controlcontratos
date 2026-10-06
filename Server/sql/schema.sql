@@ -153,3 +153,7 @@ CREATE TABLE IF NOT EXISTS pedido_facturas (
   creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS pedido_facturas_pedido ON pedido_facturas (pedido_id);
+
+-- La reducción líquida reemplaza el autorizado; las ampliaciones/cancelaciones
+-- registradas después de ella se aplican sobre su monto.
+ALTER TABLE pedido_oficios ADD COLUMN IF NOT EXISTS posterior_reduccion BOOLEAN NOT NULL DEFAULT false;

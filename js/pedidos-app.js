@@ -167,6 +167,14 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  // Recordar si "Cantidades del contrato" está desplegada (al recargar la lista se conserva)
+  contenedor.querySelectorAll('.detalle-montos').forEach(d => {
+    d.addEventListener('toggle', () => {
+      const id = Number(d.dataset.montosId);
+      if (d.open) tarjetasMontosAbiertas.add(id); else tarjetasMontosAbiertas.delete(id);
+    });
+  });
+
   // Avance de cada factura (contabilidad → inicio de pago → pagada)
   contenedor.querySelectorAll('.form-avance-factura').forEach(form => {
     form.addEventListener('submit', async (e) => {
