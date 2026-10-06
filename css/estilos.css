@@ -923,3 +923,9 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
   .factura-item, .factura-item:not(:has(.btn-icono)) { grid-template-columns: minmax(0, 1fr) auto auto; }
   .fi-docs, .fi-accion { grid-column: 1 / -1; justify-self: start; }
 }
+.factura-item { grid-template-columns: minmax(0, 1.5fr) 120px 128px minmax(110px, 1fr) auto 32px; }
+.factura-item:not(:has(.btn-icono)) { grid-template-columns: minmax(0, 1.5fr) 120px 128px minmax(110px, 1fr) auto; }
+.form-avance-factura .btn { white-space: nowrap; }
+@media (max-width: 1000px) {
+  .factura-item, .factura-item:not(:has(.btn-icono)) { grid-template-columns: minmax(0, 1fr) auto auto; }
+}
