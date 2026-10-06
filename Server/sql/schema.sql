@@ -120,3 +120,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS pedido_archivos_pedido_tipo ON pedido_archivos
 -- aquí solo queda su ID. "datos" solo conserva archivos aún no migrados.
 ALTER TABLE pedido_archivos ADD COLUMN IF NOT EXISTS drive_id TEXT;
 ALTER TABLE pedido_archivos ALTER COLUMN datos DROP NOT NULL;
+
+-- Flujo de 10 pasos (2026-10-06): oficio de autorización, contrarrecibo,
+-- descripción de factura y reducción. Adecuación, reducción y entrega son opcionales.
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS aut_folio VARCHAR(80);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS aut_monto NUMERIC(14,2);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS aut_fecha DATE;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS contrarecibo_no VARCHAR(80);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS contrarecibo_fecha DATE;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS contrarecibo_cuenta VARCHAR(120);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS contrarecibo_monto NUMERIC(14,2);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS factura_descripcion TEXT;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS reduccion_monto NUMERIC(14,2);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS reduccion_fecha DATE;
+ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_estatus_check;
+UPDATE pedidos SET estatus = 'pedido_creado' WHERE estatus NOT IN ('pedido_creado','oficio_autorizado','contrarecibo','adecuacion','factura_recibida','reduccion','entregado','en_contabilidad','en_pago','pagado') OR (estatus = 'entregado' AND aut_folio IS NULL);
+ALTER TABLE pedidos ADD CONSTRAINT pedidos_estatus_check CHECK (estatus IN ('pedido_creado','oficio_autorizado','contrarecibo','adecuacion','factura_recibida','reduccion','entregado','en_contabilidad','en_pago','pagado'));

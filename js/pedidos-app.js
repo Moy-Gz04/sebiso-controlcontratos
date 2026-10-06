@@ -45,54 +45,65 @@ function adjuntarEventosPedidos() {
     });
   });
 
-  // Archivo del contrato: ver y subir / reemplazar
-  contenedor.querySelectorAll('[data-ver-contrato]').forEach(btn => {
+  // Documentos (contrato, oficio de autorización, contrarrecibo, entrega): ver y subir / reemplazar
+  contenedor.querySelectorAll('[data-ver-doc]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      try { await StorePedidos.abrirContrato(Number(btn.dataset.verContrato)); }
+      try { await StorePedidos.abrirDocumento(Number(btn.dataset.pedidoId), btn.dataset.verDoc); }
       catch (err) { mostrarAviso(err.message, true); }
     });
   });
-  contenedor.querySelectorAll('[data-subir-contrato]').forEach(input => {
+  contenedor.querySelectorAll('[data-subir-doc]').forEach(input => {
     input.addEventListener('change', async () => {
       const archivo = input.files[0];
       if (!archivo) return;
-      const id = Number(input.dataset.subirContrato);
+      const id = Number(input.dataset.pedidoId);
       try {
-        mostrarAviso('Subiendo contrato…');
-        await StorePedidos.subirContrato(id, archivo);
+        mostrarAviso('Subiendo documento…');
+        await StorePedidos.subirDocumento(id, input.dataset.subirDoc, archivo);
         tarjetasPedidoExpandidas.add(id);
         await renderListadoPedidos();
-        mostrarAviso('Contrato guardado.');
+        mostrarAviso('Documento guardado.');
       } catch (err) { mostrarAviso(err.message, true); }
+    });
+  });
+  // Muestra el nombre del archivo elegido dentro del formulario del paso
+  contenedor.querySelectorAll('.form-paso-pedido input[name="documento"]').forEach(input => {
+    input.addEventListener('change', () => {
+      const etiqueta = input.closest('.zona-archivo').querySelector('[data-nombre-archivo]');
+      etiqueta.textContent = input.files[0] ? input.files[0].name : etiqueta.dataset.textoOriginal;
     });
   });
 
-  // Documento de entrega: ver y subir / reemplazar
-  contenedor.querySelectorAll('[data-ver-entrega]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      try { await StorePedidos.abrirDocumentoEntrega(Number(btn.dataset.verEntrega)); }
-      catch (err) { mostrarAviso(err.message, true); }
-    });
+  // Reducción: muestra al momento cuánto se reduce y en cuánto queda
+  contenedor.querySelectorAll('input[name="montoEjercido"]').forEach(input => {
+    const salida = input.closest('form').querySelector('[data-calculo-reduccion]');
+    const calcular = () => {
+      const aut = Number(input.dataset.autorizado), ej = Number(input.value);
+      if (!input.value || isNaN(ej)) { salida.textContent = ''; return; }
+      if (ej > aut) { salida.textContent = 'No puede ser mayor al autorizado (' + fmtMoneda.format(aut) + ').'; salida.classList.add('error'); return; }
+      salida.classList.remove('error');
+      salida.textContent = 'Reducción: ' + fmtMoneda.format(aut - ej) + ' · el contrato queda en ' + fmtMoneda.format(ej);
+    };
+    input.addEventListener('input', calcular);
   });
-  contenedor.querySelectorAll('[data-subir-entrega]').forEach(input => {
-    input.addEventListener('change', async () => {
-      const archivo = input.files[0];
-      if (!archivo) return;
-      const id = Number(input.dataset.subirEntrega);
-      try {
-        mostrarAviso('Subiendo documento…');
-        await StorePedidos.subirDocumentoEntrega(id, archivo);
-        tarjetasPedidoExpandidas.add(id);
-        await renderListadoPedidos();
-        mostrarAviso('Documento de entrega guardado.');
-      } catch (err) { mostrarAviso(err.message, true); }
-    });
-  });
-  // Muestra el nombre del archivo elegido en el formulario de entrega
-  contenedor.querySelectorAll('input[name="documentoEntrega"]').forEach(input => {
-    input.addEventListener('change', () => {
-      input.closest('.zona-archivo').querySelector('[data-nombre-archivo]').textContent =
-        input.files[0] ? input.files[0].name : 'Adjuntar documento de entrega (opcional)';
+
+  // Omitir un paso opcional
+  contenedor.querySelectorAll('[data-omitir-paso]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.pedidoId);
+      pedirConfirmacion({
+        titulo: 'Omitir paso',
+        mensaje: '¿Este contrato no lleva este paso? Se marcará como omitido y avanzará al siguiente.',
+        textoConfirmar: 'Sí, omitir',
+        accion: async () => {
+          try {
+            await StorePedidos.omitirPaso(id, btn.dataset.omitirPaso);
+            tarjetasPedidoExpandidas.add(id);
+            await renderListadoPedidos();
+            mostrarAviso('Paso omitido.');
+          } catch (err) { mostrarAviso(err.message, true); }
+        }
+      });
     });
   });
 
@@ -116,54 +127,34 @@ function adjuntarEventosPedidos() {
     });
   });
 
-  // Formularios de cada paso (entrega, oficio de adecuación, factura,
-  // contabilidad, inicio de pago, pagado) — todos comparten esta clase
-  // y usan data-accion para saber a qué endpoint llamar.
+  // Formularios de cada paso: data-accion es la ruta del paso en el servidor;
+  // los campos se mandan por su "name". Si el paso trae documento, se sube después.
   contenedor.querySelectorAll('.form-paso-pedido').forEach(form => {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = Number(form.dataset.pedidoId);
-      const accion = form.dataset.accion;
+      const boton = form.querySelector('button[type="submit"]');
+      const cuerpo = {};
+      form.querySelectorAll('input[name], select[name], textarea[name]').forEach(el => {
+        if (el.type !== 'file') cuerpo[el.name] = el.value.trim();
+      });
+      const doc = form.documento && form.documento.files[0];
       try {
-        switch (accion) {
-          case 'entrega': {
-            const doc = form.documentoEntrega && form.documentoEntrega.files[0];
-            if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
-            await StorePedidos.registrarEntrega(id, form.fechaEntrega.value);
-            if (doc) {
-              try { await StorePedidos.subirDocumentoEntrega(id, doc); }
-              catch (err) { mostrarAviso('Entrega registrada, pero el documento no se subió: ' + err.message, true); }
-            }
-            break;
-          }
-          case 'oficio-adecuacion':
-            await StorePedidos.registrarOficioAdecuacion(id, {
-              folio: form.folio.value.trim(),
-              monto: form.monto.value,
-              fecha: form.fecha.value
-            });
-            break;
-          case 'factura':
-            await StorePedidos.registrarFactura(id, {
-              noFactura: form.noFactura.value.trim(),
-              monto: form.monto.value,
-              fecha: form.fecha.value
-            });
-            break;
-          case 'contabilidad':
-            await StorePedidos.registrarContabilidad(id, form.fechaContabilidad.value);
-            break;
-          case 'inicio-pago':
-            await StorePedidos.registrarInicioPago(id, form.fechaInicioPago.value);
-            break;
-          case 'pagado':
-            await StorePedidos.registrarPagado(id, form.fechaPagado.value);
-            break;
+        if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
+        boton.disabled = true;
+        await StorePedidos.registrarPaso(id, form.dataset.accion, cuerpo);
+        let aviso = 'Paso registrado.', error = false;
+        if (doc && form.dataset.doc) {
+          try { await StorePedidos.subirDocumento(id, form.dataset.doc, doc); aviso = 'Paso registrado con su documento.'; }
+          catch (err) { aviso = 'Paso registrado, pero el documento no se subió: ' + err.message + ' Súbelo desde el detalle.'; error = true; }
         }
         tarjetasPedidoExpandidas.add(id);
         await renderListadoPedidos();
-        mostrarAviso('Paso registrado.');
-      } catch (err) { mostrarAviso(err.message, true); }
+        mostrarAviso(aviso, error);
+      } catch (err) {
+        boton.disabled = false;
+        mostrarAviso(err.message, true);
+      }
     });
   });
 

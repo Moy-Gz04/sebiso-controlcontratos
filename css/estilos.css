@@ -672,15 +672,15 @@ tbody tr:last-child td { border-bottom: none; }
 .tc-cuerpo { padding: 22px 24px 20px 24px; border-top: 1px solid var(--borde); background: #FCFAF7; }
 .tc-cuerpo[hidden] { display: none; }
 
-/* ---- Recorrido (7 pasos) ---- */
+/* ---- Recorrido (10 pasos) ---- */
 .recorrido {
   --avance: 0;
   list-style: none; margin: 0 0 26px; padding: 0; position: relative;
-  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(10, minmax(0, 1fr));
 }
-.recorrido::before, .recorrido::after { content: ""; position: absolute; top: 19px; left: calc(100% / 14); height: 3px; border-radius: 3px; }
-.recorrido::before { right: calc(100% / 14); background: var(--borde-fuerte); }
-.recorrido::after { width: calc((100% - 100% / 7) * var(--avance)); background: var(--dorado); transform-origin: left; }
+.recorrido::before, .recorrido::after { content: ""; position: absolute; top: 19px; left: calc(100% / 20); height: 3px; border-radius: 3px; }
+.recorrido::before { right: calc(100% / 20); background: var(--borde-fuerte); }
+.recorrido::after { width: calc((100% - 100% / 10) * var(--avance)); background: var(--dorado); transform-origin: left; }
 .rec-paso { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .rec-circulo {
   width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px;
@@ -688,7 +688,7 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .rec-paso.hecho .rec-circulo { background: var(--dorado); border-color: var(--dorado); color: #fff; }
 .rec-paso.actual .rec-circulo { background: var(--guinda); border-color: var(--guinda); color: #fff; box-shadow: 0 0 0 5px rgba(107,15,43,.12); }
-.rec-label { font-size: 11.5px; font-weight: 600; color: var(--texto-tenue); line-height: 1.3; max-width: 96px; }
+.rec-label { font-size: 11px; font-weight: 600; color: var(--texto-tenue); line-height: 1.3; max-width: 86px; }
 .rec-paso.hecho .rec-label { color: var(--texto-suave); }
 .rec-paso.actual .rec-label { color: var(--guinda-oscuro); font-weight: 700; }
 
@@ -829,3 +829,30 @@ tbody tr:last-child td { border-bottom: none; }
 
 .form-paso-pedido .zona-archivo--opcional { margin: 4px 0 14px; padding: 12px; }
 .form-paso-pedido .zona-archivo--opcional .ti { font-size: 22px; }
+
+/* ---- Flujo de 10 pasos: opcionales, omitidos y cantidades ---- */
+.rec-label small { display: block; font-size: 10px; font-weight: 500; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .4px; }
+.rec-paso.omitido .rec-circulo { background: #fff; border-style: dashed; border-color: var(--borde-fuerte); color: var(--texto-tenue); }
+.rec-paso.omitido .rec-label { color: var(--texto-tenue); text-decoration: line-through; text-decoration-thickness: 1px; }
+.rec-paso.omitido .rec-label small { text-decoration: none; }
+.chip-opcional { display: inline-block; vertical-align: middle; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--dorado-suave); color: var(--guinda-oscuro); font-size: 10.5px; font-weight: 600; font-family: inherit; letter-spacing: .3px; }
+.ppa-botones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 4px; }
+.subseccion-montos { margin-top: 18px; }
+.montos-contrato { margin-top: 0; }
+.montos-contrato span small { display: block; font-size: 11px; color: var(--texto-tenue); margin-top: 1px; }
+.montos-contrato b em { font-style: normal; font-weight: 500; color: var(--texto-tenue); }
+.montos-contrato .reduccion b { color: var(--exito); }
+.aviso-monto { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; padding: 8px 12px; border-radius: var(--radio-sm); background: #FFF6E5; color: #8A5A00; font-size: 12.5px; }
+.aviso-monto .ti { font-size: 16px; margin-top: 1px; }
+.calculo-reduccion { margin: 2px 0 12px; font-size: 13px; color: var(--guinda-oscuro); font-weight: 600; font-variant-numeric: tabular-nums; min-height: 18px; }
+.calculo-reduccion.error { color: #B42318; }
+.bloque-documentos { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 20px; }
+@media (max-width: 1000px) {
+  .recorrido { grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: 18px; }
+  .recorrido::before, .recorrido::after { display: none; }
+}
+@media (max-width: 720px) {
+  .recorrido { grid-template-columns: 1fr; }
+  .recorrido::before, .recorrido::after { display: block; }
+  .bloque-documentos { grid-template-columns: 1fr; }
+}
