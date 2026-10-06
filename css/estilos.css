@@ -967,3 +967,13 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 
 /* Campos de monto con comas: alineados como cifras */
 .campo-monto { font-variant-numeric: tabular-nums; }
+
+/* ---- Oficio de contabilidad por factura ---- */
+.fi-oficio { grid-column: 1 / -1; margin-top: 6px; padding: 14px; border-radius: var(--radio-sm); background: #FCFAF7; border: 1px dashed var(--borde-fuerte); }
+.fi-oficio-titulo { font-weight: 700; font-size: 13px; color: var(--guinda-oscuro); margin-bottom: 10px; }
+.fi-oficio .fila-4 { align-items: end; }
+.fi-oficio .fi-oficio-doc { margin: 0; padding: 8px 10px; flex-direction: row; gap: 8px; justify-content: center; min-height: 42px; }
+.fi-oficio .fi-oficio-doc .ti { font-size: 18px; }
+.fi-falta-oficio { margin-top: 4px; align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 1px solid #F5C2C2; background: #FDECEC; color: #B42318; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.fi-falta-oficio:hover { background: #FAD9D9; }
+@media (max-width: 720px) { .fi-oficio .fila-4 { grid-template-columns: 1fr; } }

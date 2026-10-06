@@ -200,6 +200,47 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  // Abrir / cerrar el panel del oficio de contabilidad de una factura
+  contenedor.querySelectorAll('[data-abrir-oficio]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = document.getElementById('oficio-contab-' + btn.dataset.abrirOficio);
+      if (!panel) return;
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) panel.querySelector('input[name="noOficio"]').focus();
+    });
+  });
+  contenedor.querySelectorAll('.form-oficio-contab input[name="documento"]').forEach(input => {
+    input.addEventListener('change', () => {
+      const et = input.closest('.zona-archivo').querySelector('[data-nombre-archivo]');
+      et.textContent = input.files[0] ? input.files[0].name : et.dataset.textoOriginal;
+    });
+  });
+
+  // Turnar a contabilidad con su oficio (o completar el oficio de una ya turnada)
+  contenedor.querySelectorAll('.form-oficio-contab').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = Number(form.dataset.pedidoId), fid = Number(form.dataset.fid);
+      const boton = form.querySelector('button[type="submit"]');
+      const datos = { noOficio: form.noOficio.value.trim(), fecha: form.fecha.value, monto: form.monto.value };
+      const doc = form.documento.files[0];
+      try {
+        if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
+        boton.disabled = true;
+        if (form.dataset.modo === 'turnar') await StorePedidos.avanzarFactura(id, fid, 'contabilidad', datos.fecha, datos);
+        else await StorePedidos.guardarOficioContabilidad(id, fid, datos);
+        let aviso = form.dataset.modo === 'turnar' ? 'Factura turnada a contabilidad.' : 'Oficio de contabilidad guardado.', error = false;
+        if (doc) {
+          try { await StorePedidos.subirDocumento(id, 'documento-contab-' + fid, doc); aviso = aviso.replace('.', ' con su oficio adjunto.'); }
+          catch (err) { aviso = 'Se registró, pero el oficio no se subió: ' + err.message + ' Súbelo desde la factura.'; error = true; }
+        }
+        tarjetasPedidoExpandidas.add(id);
+        await renderListadoPedidos();
+        mostrarAviso(aviso, error);
+      } catch (err) { boton.disabled = false; mostrarAviso(err.message, true); }
+    });
+  });
+
   // Eliminar una factura capturada por error
   contenedor.querySelectorAll('[data-eliminar-factura]').forEach(btn => {
     btn.addEventListener('click', () => {

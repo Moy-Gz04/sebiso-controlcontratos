@@ -643,7 +643,32 @@ function renderFacturas(p, idxActual) {
 
   const filas = (p.facturas || []).map(f => {
     const e = ESTADO_FACTURA[f.estado];
-    const avance = e.siguiente ? `
+    const oc = f.oficioContabilidad;
+    const faltaOficio = !oc && f.estado !== 'registrada';
+    // Turnar a contabilidad = registrar el oficio (No., fecha, monto y documento)
+    const panelOficio = (f.estado === 'registrada' || faltaOficio) ? `
+      <div class="fi-oficio" id="oficio-contab-${f.id}" hidden>
+        <form class="form-oficio-contab" data-pedido-id="${p.id}" data-fid="${f.id}" data-modo="${f.estado === 'registrada' ? 'turnar' : 'completar'}">
+          <div class="fi-oficio-titulo">Oficio para contabilidad · factura ${escaparHtml(f.noFactura)}</div>
+          <div class="fila-formulario fila-4">
+            <label>No. de oficio<input type="text" name="noOficio" placeholder="Ej. SEBISO/CA/0123/2026" required></label>
+            <label>Fecha del oficio<input type="date" name="fecha" value="${f.fechaContabilidad || hoy}" required></label>
+            <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${valor(f.monto)}" required></label>
+            <label class="zona-archivo zona-archivo--opcional fi-oficio-doc">
+              <i class="ti ti-file-upload"></i>
+              <span class="zona-archivo__texto" data-nombre-archivo data-texto-original="Adjuntar el oficio">Adjuntar el oficio</span>
+              <input type="file" name="documento" accept=".pdf,.doc,.docx,image/*">
+            </label>
+          </div>
+          <div class="ppa-botones">
+            <button type="submit" class="btn btn-primario btn-sm">${f.estado === 'registrada' ? 'Turnar a contabilidad' : 'Guardar oficio'} <i class="ti ti-arrow-right"></i></button>
+            <button type="button" class="btn btn-texto btn-sm" data-abrir-oficio="${f.id}">Cancelar</button>
+          </div>
+        </form>
+      </div>` : '';
+    const avance = f.estado === 'registrada'
+      ? `<button type="button" class="btn btn-primario btn-sm" data-abrir-oficio="${f.id}">Turnar a contabilidad</button>`
+      : e.siguiente ? `
       <form class="form-avance-factura" data-pedido-id="${p.id}" data-fid="${f.id}" data-avance="${e.siguiente}">
         <label class="sr-solo" for="av-${f.id}">${e.campo}</label>
         <input type="date" id="av-${f.id}" name="fecha" value="${hoy}" required title="${e.campo}">
@@ -654,16 +679,19 @@ function renderFacturas(p, idxActual) {
         <div class="fi-principal">
           <span class="fi-no">${escaparHtml(f.noFactura)}</span>
           <span class="fi-desc">${escaparHtml(f.descripcion || '')}</span>
-          <span class="fi-meta">${fmtFecha(f.fecha)}${f.fechaContabilidad ? ' · contab. ' + fmtFecha(f.fechaContabilidad) : ''}${f.fechaInicioPago ? ' · pago iniciado ' + fmtFecha(f.fechaInicioPago) : ''}</span>
+          <span class="fi-meta">${fmtFecha(f.fecha)}${oc ? ` · oficio contab. ${escaparHtml(oc.noOficio)} (${fmtFecha(oc.fecha)}, ${fmtMoneda.format(oc.monto)})` : f.fechaContabilidad ? ' · contab. ' + fmtFecha(f.fechaContabilidad) : ''}${f.fechaInicioPago ? ' · pago iniciado ' + fmtFecha(f.fechaInicioPago) : ''}</span>
+          ${faltaOficio ? `<button type="button" class="fi-falta-oficio" data-abrir-oficio="${f.id}"><i class="ti ti-alert-triangle"></i> Falta el oficio de contabilidad · completar</button>` : ''}
         </div>
         <span class="fi-monto">${fmtMoneda.format(f.monto)}</span>
         <span class="fi-estado">${e.texto}</span>
         <div class="fi-docs">
           ${docFila(f.documento, 'documento-factura-' + f.id, 'Factura')}
+          ${oc ? docFila(oc.documento, 'documento-contab-' + f.id, 'Oficio contab.') : ''}
           ${f.estado === 'pagada' || f.estado === 'en_pago' ? docFila(f.comprobante, 'documento-pago-' + f.id, 'Comprobante de pago') : ''}
         </div>
         <div class="fi-accion">${avance}</div>
         ${f.estado !== 'pagada' ? `<button type="button" class="btn-icono" data-eliminar-factura="${f.id}" data-pedido-id="${p.id}" title="Eliminar factura" aria-label="Eliminar factura ${escaparHtml(f.noFactura)}"><i class="ti ti-trash"></i></button>` : ''}
+        ${panelOficio}
       </li>`;
   }).join('');
 

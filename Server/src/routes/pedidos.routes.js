@@ -41,6 +41,8 @@ function facturaAJson(f, archivos) {
   return {
     id: f.id, noFactura: f.no_factura, fecha: f.fecha, descripcion: f.descripcion, monto: Number(f.monto),
     fechaContabilidad: f.fecha_contabilidad, fechaInicioPago: f.fecha_inicio_pago, fechaPagado: f.fecha_pagado, estado,
+    oficioContabilidad: f.contab_oficio ? { noOficio: f.contab_oficio, fecha: f.fecha_contabilidad, monto: Number(f.contab_monto),
+      documento: archivoAJson(archivos.find(a => a.tipo === 'contab-' + f.id)) } : null,
     documento: archivoAJson(archivos.find(a => a.tipo === 'factura-' + f.id)),
     comprobante: archivoAJson(archivos.find(a => a.tipo === 'pago-' + f.id))
   };
@@ -153,14 +155,14 @@ function tipoDeRuta(ruta) {
   const m = /^documento-([a-z]+)(?:-(\d+))?$/.exec(String(ruta || ''));
   if (!m) return null;
   if (!m[2]) return PASOS_CON_DOCUMENTO.includes(m[1]) ? m[1] : null;
-  return ['factura', 'pago'].includes(m[1]) ? m[1] + '-' + m[2] : null;
+  return ['factura', 'pago', 'contab'].includes(m[1]) ? m[1] + '-' + m[2] : null;
 }
-const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarecibo', adecuacion: 'Oficio adecuacion', reduccion: 'Reduccion', factura: 'Factura', pago: 'Comprobante de pago' };
+const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarecibo', adecuacion: 'Oficio adecuacion', reduccion: 'Reduccion', factura: 'Factura', pago: 'Comprobante de pago', contab: 'Oficio contabilidad factura' };
 const etiquetaArchivo = tipo => { const [t, n] = tipo.split('-'); return (ETIQUETA_ARCHIVO[t] || 'Documento') + (n ? ' ' + n : ''); };
 
 // Los documentos de una factura o de su pago solo se aceptan si la factura es del contrato
 async function facturaDelContrato(tipo, id) {
-  const m = /^(factura|pago)-(\d+)$/.exec(tipo);
+  const m = /^(factura|pago|contab)-(\d+)$/.exec(tipo);
   if (!m) return true;
   const { rows } = await db.query('SELECT 1 FROM pedido_facturas WHERE id = $1 AND pedido_id = $2', [Number(m[2]), id]);
   return rows.length > 0;
@@ -437,24 +439,54 @@ const AVANCE_FACTURA = {
   'inicio-pago':  { columna: 'fecha_inicio_pago', antes: 'fecha_contabilidad', nombre: 'el inicio del pago' },
   'pagado':       { columna: 'fecha_pagado', antes: 'fecha_inicio_pago', nombre: 'el pago' }
 };
-router.put('/:id/facturas/:fid/:avance', async (req, res) => {
+router.put('/:id/facturas/:fid/:avance', async (req, res, next) => {
   const id = Number(req.params.id), fid = Number(req.params.fid);
   const av = AVANCE_FACTURA[req.params.avance];
-  if (!av) return res.status(404).json({ ok: false, mensaje: 'Acción no válida' });
-  const f = fecha((req.body || {}).fecha);
+  if (!av) return next();   // otras rutas de la factura (p. ej. oficio-contabilidad)
+  const b = req.body || {};
+  const f = fecha(b.fecha);
   if (!f) return res.status(400).json({ ok: false, mensaje: 'Falta la fecha' });
+  // Turnar a contabilidad se hace con un oficio: número, fecha (la del oficio) y monto
+  const esContab = req.params.avance === 'contabilidad';
+  const oficioNo = texto(b.noOficio), oficioMonto = num(b.monto);
+  if (esContab && !oficioNo) return res.status(400).json({ ok: false, mensaje: 'Falta el No. de oficio para contabilidad' });
+  if (esContab && !(oficioMonto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto del oficio debe ser mayor a 0' });
   try {
     const { rows } = await db.query('SELECT * FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
     if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
     const fac = rows[0];
     if (fac[av.columna]) return res.status(409).json({ ok: false, mensaje: 'Esta factura ya tiene registrado ' + av.nombre + '. Recarga la página.' });
     if (av.antes && !fac[av.antes]) return res.status(409).json({ ok: false, mensaje: 'Esta factura aún no está en el paso previo.' });
-    await db.query(`UPDATE pedido_facturas SET ${av.columna}=$1 WHERE id=$2`, [f, fid]);
+    if (esContab) {
+      await db.query('UPDATE pedido_facturas SET fecha_contabilidad=$1, contab_oficio=$2, contab_monto=$3 WHERE id=$4', [f, oficioNo, oficioMonto, fid]);
+    } else {
+      await db.query(`UPDATE pedido_facturas SET ${av.columna}=$1 WHERE id=$2`, [f, fid]);
+    }
     await recalcularEstatus(id);
     res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {
     console.error('Error en PUT /facturas avance:', error);
     res.status(500).json({ ok: false, mensaje: 'Error al registrar ' + av.nombre });
+  }
+});
+
+// Completar o corregir el oficio de contabilidad de una factura que ya se turnó
+router.put('/:id/facturas/:fid/oficio-contabilidad', async (req, res) => {
+  const id = Number(req.params.id), fid = Number(req.params.fid);
+  const b = req.body || {};
+  const f = fecha(b.fecha), no = texto(b.noOficio), monto = num(b.monto);
+  if (!no) return res.status(400).json({ ok: false, mensaje: 'Falta el No. de oficio para contabilidad' });
+  if (!f) return res.status(400).json({ ok: false, mensaje: 'Falta la fecha del oficio' });
+  if (!(monto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto del oficio debe ser mayor a 0' });
+  try {
+    const { rows } = await db.query('SELECT fecha_contabilidad FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
+    if (!rows[0].fecha_contabilidad) return res.status(409).json({ ok: false, mensaje: 'Esta factura todavía no se turna a contabilidad.' });
+    await db.query('UPDATE pedido_facturas SET contab_oficio=$1, fecha_contabilidad=$2, contab_monto=$3 WHERE id=$4', [no, f, monto, fid]);
+    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    console.error('Error en PUT /oficio-contabilidad:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al guardar el oficio de contabilidad' });
   }
 });
 
@@ -465,8 +497,8 @@ router.delete('/:id/facturas/:fid', async (req, res) => {
     const { rows } = await db.query('SELECT fecha_pagado FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
     if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
     if (rows[0].fecha_pagado) return res.status(409).json({ ok: false, mensaje: 'No se puede eliminar una factura pagada' });
-    const { rows: arch } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3) AND drive_id IS NOT NULL', [id, 'factura-' + fid, 'pago-' + fid]);
-    await db.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3)', [id, 'factura-' + fid, 'pago-' + fid]);
+    const { rows: arch } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4) AND drive_id IS NOT NULL', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid]);
+    await db.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4)', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid]);
     await db.query('DELETE FROM pedido_facturas WHERE id=$1', [fid]);
     arch.forEach(a => papeleraDrive(a.drive_id));
     const { rows: quedan } = await db.query('SELECT count(*)::int n FROM pedido_facturas WHERE pedido_id=$1', [id]);

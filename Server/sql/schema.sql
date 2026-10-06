@@ -157,3 +157,8 @@ CREATE INDEX IF NOT EXISTS pedido_facturas_pedido ON pedido_facturas (pedido_id)
 -- La reducción líquida reemplaza el autorizado; las ampliaciones/cancelaciones
 -- registradas después de ella se aplican sobre su monto.
 ALTER TABLE pedido_oficios ADD COLUMN IF NOT EXISTS posterior_reduccion BOOLEAN NOT NULL DEFAULT false;
+
+-- Turnar una factura a contabilidad se hace con un oficio (número, fecha y monto)
+-- y su documento (pedido_archivos tipo 'contab-<id factura>').
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS contab_oficio VARCHAR(80);
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS contab_monto NUMERIC(14,2);

@@ -119,8 +119,13 @@ const StorePedidos = {
   async agregarFactura(id, cuerpo) {
     return peticion(`/pedidos/${id}/facturas`, { method: 'POST', body: JSON.stringify(cuerpo) });
   },
-  async avanzarFactura(id, fid, avance, fecha) {
-    const datos = await peticion(`/pedidos/${id}/facturas/${fid}/${avance}`, { method: 'PUT', body: JSON.stringify({ fecha }) });
+  async avanzarFactura(id, fid, avance, fecha, extra = {}) {
+    const datos = await peticion(`/pedidos/${id}/facturas/${fid}/${avance}`, { method: 'PUT', body: JSON.stringify({ fecha, ...extra }) });
+    return datos.pedido;
+  },
+  // Completar o corregir el oficio de contabilidad de una factura ya turnada
+  async guardarOficioContabilidad(id, fid, { noOficio, fecha, monto }) {
+    const datos = await peticion(`/pedidos/${id}/facturas/${fid}/oficio-contabilidad`, { method: 'PUT', body: JSON.stringify({ noOficio, fecha, monto }) });
     return datos.pedido;
   },
   async eliminarFactura(id, fid) {
