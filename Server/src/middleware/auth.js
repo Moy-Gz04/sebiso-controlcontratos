@@ -11,7 +11,7 @@ function requiereAutenticacion(req, res, next) {
   // Enlace temporal para abrir un archivo en otra pestaña: el navegador no
   // puede mandar el encabezado Authorization, así que el token viaja en la
   // URL. Solo se aceptan tokens de uso 'archivo' (duran 2 minutos) y en GET.
-  if (!encabezado && req.method === 'GET' && req.query.acceso && /^\/\d+\/(contrato|documento-(entrega|autorizacion|contrarecibo|factura))$/.test(req.path)) {
+  if (!encabezado && req.method === 'GET' && req.query.acceso && /^\/\d+\/(contrato|documento-[a-z]+(-\d+)?)$/.test(req.path)) {
     try {
       const datos = jwt.verify(String(req.query.acceso), process.env.JWT_SECRET);
       if (datos.uso !== 'archivo') throw new Error('uso');

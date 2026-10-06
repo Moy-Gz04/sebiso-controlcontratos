@@ -17,7 +17,7 @@ const PASOS_PEDIDO = [
   { clave: 'oficio_autorizado', label: 'Oficio de autorización',   corto: 'Autorización',  icono: 'ti-file-certificate' },
   { clave: 'contrarecibo',      label: 'Contrarrecibo',            corto: 'Contrarrecibo', icono: 'ti-receipt-2' },
   { clave: 'adecuacion',        label: 'Oficio de adecuación',     corto: 'Adecuación',    icono: 'ti-adjustments-dollar', opcional: true },
-  { clave: 'factura_recibida',  label: 'Factura',                  corto: 'Factura',       icono: 'ti-receipt' },
+  { clave: 'factura_recibida',  label: 'Facturas',                 corto: 'Facturas',      icono: 'ti-receipt' },
   { clave: 'reduccion',         label: 'Reducción',                corto: 'Reducción',     icono: 'ti-arrow-down-circle', opcional: true },
   { clave: 'entregado',         label: 'Entrega',                  corto: 'Entrega',       icono: 'ti-truck-delivery', opcional: true },
   { clave: 'en_contabilidad',   label: 'Contabilidad',             corto: 'Contabilidad',  icono: 'ti-calculator' },
@@ -30,12 +30,12 @@ const SIGUIENTE_PASO = {
   pedido_creado: 'Registrar el oficio de autorización',
   oficio_autorizado: 'Registrar el contrarrecibo',
   contrarecibo: 'Oficio de adecuación (opcional)',
-  adecuacion: 'Registrar la factura',
+  adecuacion: 'Registrar la primera factura',
   factura_recibida: 'Reducción (opcional)',
   reduccion: 'Entrega (opcional)',
-  entregado: 'Turnar a contabilidad',
-  en_contabilidad: 'Iniciar el proceso de pago',
-  en_pago: 'Registrar el pago'
+  entregado: 'Seguimiento de facturas en contabilidad',
+  en_contabilidad: 'Seguimiento de pagos de facturas',
+  en_pago: 'Registrar los pagos de las facturas'
 };
 
 function indicePaso(estatus) {
@@ -257,14 +257,16 @@ function renderMontosContrato(p) {
   const ajustes = (p.oficios || []).length;
   const notaAut = p.oficio ? 'según oficio de adecuación' : (p.autorizacion ? 'según oficio de autorización' : '');
   const avisos = [];
-  if (m.facturado !== null && m.autorizado !== null && m.facturado > m.autorizado + 0.005) avisos.push('La factura es mayor al monto autorizado.');
+  if (m.disponible !== null && m.facturado > m.disponible + 0.005) avisos.push('Lo facturado es mayor al monto disponible.');
   if (m.contrarecibo !== null && m.autorizado !== null && Math.abs(m.contrarecibo - m.autorizado) > 0.005) avisos.push(`El contrarrecibo difiere del autorizado por ${fmtMoneda.format(Math.abs(m.contrarecibo - m.autorizado))}.`);
   return `
     <div class="montos-mini montos-contrato">
       ${fila('Contratado', m.contratado, 'monto del contrato')}
       ${fila('Autorizado vigente', m.autorizado, notaAut + (ajustes ? ` · ${ajustes} ajuste${ajustes > 1 ? 's' : ''}` : ''))}
       ${fila('Contrarrecibo', m.contrarecibo)}
-      ${fila('Facturado', m.facturado)}
+      ${fila('Facturado', m.numFacturas ? m.facturado : null, m.numFacturas ? m.numFacturas + ' factura' + (m.numFacturas > 1 ? 's' : '') : '')}
+      ${m.numFacturas ? fila('Pagado', m.pagado) : ''}
+      ${m.porFacturar !== null && m.numFacturas ? fila('Por facturar', m.porFacturar, m.porFacturar > 0.005 ? 'aún se pueden registrar facturas' : 'facturación completa', m.porFacturar > 0.005 ? 'pendiente' : 'completo') : ''}
       ${m.ejercido !== null ? fila('Reducción', -m.reduccion, 'sobrante que se libera', 'reduccion') : ''}
       ${fila(m.ejercido !== null ? 'Ejercido (final)' : 'Monto vigente', m.vigente, m.ejercido !== null ? 'lo que realmente se gastó' : '', 'total')}
     </div>
@@ -301,13 +303,16 @@ function renderCuerpoPedido(p) {
     p.contrarecibo && { fecha: p.contrarecibo.fecha, titulo: 'Contrarrecibo', detalle: `No. ${escaparHtml(p.contrarecibo.noContrarecibo)} · Cuenta por pagar ${escaparHtml(p.contrarecibo.cuentaPorPagar)} · ${fmtMoneda.format(p.contrarecibo.monto)}` },
     p.oficio && { fecha: p.oficio.fecha, titulo: 'Oficio de adecuación', detalle: `${escaparHtml(p.oficio.folio)} · ${fmtMoneda.format(p.oficio.monto)}` },
     ...(p.oficios || []).map(of => ({ fecha: of.fecha, titulo: of.tipo === 'ampliacion' ? 'Ampliación' : 'Cancelación', detalle: `${escaparHtml(of.folio)} · ${of.tipo === 'cancelacion' ? '−' : '+'}${fmtMoneda.format(of.monto)}` })),
-    p.factura && { fecha: p.factura.fecha, titulo: 'Factura', detalle: `No. ${escaparHtml(p.factura.noFactura)} · ${fmtMoneda.format(p.factura.monto)}${p.factura.descripcion ? ' · ' + escaparHtml(p.factura.descripcion) : ''}` },
+    ...(p.facturas || []).flatMap(f => [
+      { fecha: f.fecha, titulo: 'Factura ' + escaparHtml(f.noFactura), detalle: `${fmtMoneda.format(f.monto)} · ${escaparHtml(f.descripcion || '')}` },
+      f.fechaContabilidad && { fecha: f.fechaContabilidad, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' a contabilidad', detalle: '' },
+      f.fechaInicioPago && { fecha: f.fechaInicioPago, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' en pago', detalle: '' },
+      f.fechaPagado && { fecha: f.fechaPagado, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' pagada', detalle: fmtMoneda.format(f.monto), destacado: true }
+    ]).filter(Boolean),
     p.reduccion && { fecha: p.reduccion.fecha, titulo: 'Reducción', detalle: `Se ejerció ${fmtMoneda.format(p.reduccion.montoEjercido)}${m.reduccion !== null ? ` · se liberan ${fmtMoneda.format(m.reduccion)}` : ''}`, destacado: true },
     p.fechaEntrega && indicePaso(p.estatus) >= indicePaso('entregado') && { fecha: p.fechaEntrega, titulo: 'Entrega', detalle: 'El proveedor entregó el bien o servicio' },
-    p.fechaContabilidad && { fecha: p.fechaContabilidad, titulo: 'Turnado a contabilidad', detalle: '' },
-    p.fechaInicioPago && { fecha: p.fechaInicioPago, titulo: 'Inicio del proceso de pago', detalle: '' },
-    p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Pagado', detalle: 'Proceso concluido', destacado: true }
-  ].filter(Boolean);
+    p.estatus === 'pagado' && p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Contrato pagado', detalle: 'Proceso concluido', destacado: true }
+  ].filter(Boolean).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
 
   const detalle = `
     <div class="cuerpo-columnas">
@@ -392,11 +397,12 @@ function renderCuerpoPedido(p) {
     bloqueDocumento(p, 'Contrato', p.contrato, 'contrato', 'Subir el archivo del contrato'),
     p.autorizacion ? bloqueDocumento(p, 'Oficio de autorización', p.documentoAutorizacion, 'documento-autorizacion', 'Adjuntar el oficio de autorización') : '',
     p.contrarecibo ? bloqueDocumento(p, 'Contrarrecibo', p.documentoContrarecibo, 'documento-contrarecibo', 'Adjuntar el contrarrecibo') : '',
-    p.factura ? bloqueDocumento(p, 'Factura', p.documentoFactura, 'documento-factura', 'Adjuntar la factura') : '',
+    p.oficio ? bloqueDocumento(p, 'Oficio de adecuación', p.documentoAdecuacion, 'documento-adecuacion', 'Adjuntar el oficio de adecuación') : '',
+    p.reduccion ? bloqueDocumento(p, 'Reducción', p.documentoReduccion, 'documento-reduccion', 'Adjuntar el documento de la reducción') : '',
     p.fechaEntrega && idxActual >= indicePaso('entregado') ? bloqueDocumento(p, 'Documento de entrega', p.documentoEntrega, 'documento-entrega', 'Adjuntar documento de entrega (opcional)') : ''
   ].join('');
 
-  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + oficiosHtml + acciones;
+  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + oficiosHtml + acciones;
 }
 
 const tamanoArchivo = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
@@ -504,7 +510,7 @@ function renderPanelAccionPedido(p, idxActual) {
 
     case 'contrarecibo':
       return panel({
-        titulo: 'Oficio de adecuación', ruta: 'oficio-adecuacion', boton: 'Registrar oficio', opcional: true,
+        titulo: 'Oficio de adecuación', ruta: 'oficio-adecuacion', doc: 'documento-adecuacion', boton: 'Registrar oficio', opcional: true,
         ayuda: `Si el monto autorizado cambia. Hoy está en ${fmtMoneda.format(m.autorizado)}; el oficio de adecuación lo reemplaza.`,
         campos: `
           <div class="fila-formulario">
@@ -517,13 +523,14 @@ function renderPanelAccionPedido(p, idxActual) {
           </div>
           <label>Fecha del oficio
             <input type="date" name="fecha" value="${hoy}" required>
-          </label>`
+          </label>
+          ${campoDocumento('Adjuntar el oficio de adecuación')}`
       });
 
     case 'adecuacion':
       return panel({
-        titulo: 'Factura', ruta: 'factura', doc: 'documento-factura', boton: 'Registrar factura',
-        ayuda: `La factura del proveedor. Autorizado vigente: ${fmtMoneda.format(m.autorizado)}.`,
+        titulo: 'Primera factura', ruta: 'factura-nueva', doc: 'documento-factura', boton: 'Registrar factura',
+        ayuda: `Puedes registrar varias facturas hasta cubrir ${fmtMoneda.format(m.disponible)}. Con la primera ya puedes avanzar.`,
         campos: `
           <div class="fila-formulario">
             <label>No. de factura
@@ -537,20 +544,21 @@ function renderPanelAccionPedido(p, idxActual) {
             <input type="text" name="descripcion" value="${escaparHtml(p.producto)}" required>
           </label>
           <label>Monto
-            <input type="number" name="monto" step="0.01" min="0.01" value="${valor(m.autorizado)}" required>
+            <input type="number" name="monto" step="0.01" min="0.01" max="${valor(m.porFacturar)}" value="${valor(m.porFacturar)}" required>
           </label>
           ${campoDocumento('Adjuntar la factura')}`
       });
 
     case 'factura_recibida':
       return panel({
-        titulo: 'Reducción', ruta: 'reduccion', boton: 'Registrar reducción', opcional: true,
-        ayuda: `Si no se ocupó todo lo autorizado (${fmtMoneda.format(m.autorizado)}), indica cuánto se gastó y el sobrante se reduce.`,
+        titulo: 'Reducción', ruta: 'reduccion', doc: 'documento-reduccion', boton: 'Registrar reducción', opcional: true,
+        ayuda: `Si no se ocupó todo lo autorizado (${fmtMoneda.format(m.autorizado)}), indica cuánto se gastó y el sobrante se reduce. No puede ser menor a lo ya facturado (${fmtMoneda.format(m.facturado)}). Las facturas que falten se pueden seguir registrando.`,
         campos: `
           <label>¿Cuánto se gastó del total autorizado?
-            <input type="number" name="montoEjercido" step="0.01" min="0.01" max="${valor(m.autorizado)}" value="${valor(m.facturado)}" data-autorizado="${valor(m.autorizado)}" required>
+            <input type="number" name="montoEjercido" step="0.01" min="${valor(Math.max(0.01, m.facturado))}" max="${valor(m.autorizado)}" value="${valor(m.facturado)}" data-autorizado="${valor(m.autorizado)}" data-facturado="${valor(m.facturado)}" required>
           </label>
-          <p class="calculo-reduccion" data-calculo-reduccion>${m.facturado !== null && m.autorizado !== null ? `Reducción: ${fmtMoneda.format(m.autorizado - m.facturado)} · el contrato queda en ${fmtMoneda.format(m.facturado)}` : ''}</p>`
+          <p class="calculo-reduccion" data-calculo-reduccion>${m.facturado !== null && m.autorizado !== null ? `Reducción: ${fmtMoneda.format(m.autorizado - m.facturado)} · el contrato queda en ${fmtMoneda.format(m.facturado)}` : ''}</p>
+          ${campoDocumento('Adjuntar el documento de la reducción (opcional)')}`
       });
 
     case 'reduccion':
@@ -565,27 +573,98 @@ function renderPanelAccionPedido(p, idxActual) {
       });
 
     case 'entregado':
-      return panel({
-        titulo: 'Turnar a contabilidad', ruta: 'contabilidad', boton: 'Registrar',
-        ayuda: 'Fecha en que el expediente pasó a contabilidad.',
-        campos: `<label>Fecha en que pasó a contabilidad<input type="date" name="fechaContabilidad" value="${hoy}" required></label>`
-      });
-
     case 'en_contabilidad':
-      return panel({
-        titulo: 'Iniciar proceso de pago', ruta: 'inicio-pago', boton: 'Marcar en proceso de pago',
-        ayuda: `Monto a pagar: ${fmtMoneda.format(m.vigente)}.`,
-        campos: `<label>Fecha de inicio del proceso de pago<input type="date" name="fechaInicioPago" value="${hoy}" required></label>`
-      });
-
-    case 'en_pago':
-      return panel({
-        titulo: 'Registrar pago', ruta: 'pagado', boton: 'Registrar pago y concluir',
-        ayuda: `Con esto se cierra el contrato por ${fmtMoneda.format(m.vigente)}.`,
-        campos: `<label>Fecha de pago<input type="date" name="fechaPagado" value="${hoy}" required></label>`
-      });
+    case 'en_pago': {
+      const fs = p.facturas || [];
+      const cuenta = e => fs.filter(f => f.estado === e).length;
+      return `
+        <div class="panel-paso-actual panel-seguimiento">
+          <div class="ppa-encabezado">
+            <span class="ppa-num"><i class="ti ti-list-check"></i></span>
+            <div><div class="ppa-titulo">Seguimiento por factura</div>
+            <div class="ppa-ayuda">Cada factura avanza sola: contabilidad → proceso de pago → pagada. El contrato se concluye cuando todas estén pagadas y no quede nada por facturar.</div></div>
+          </div>
+          <div class="seguimiento-cuentas">
+            <span><b>${cuenta('registrada')}</b> por turnar</span>
+            <span><b>${cuenta('en_contabilidad')}</b> en contabilidad</span>
+            <span><b>${cuenta('en_pago')}</b> en pago</span>
+            <span class="ok"><b>${cuenta('pagada')}</b> pagadas</span>
+          </div>
+          ${m.porFacturar > 0.005 ? `<p class="aviso-monto"><i class="ti ti-receipt"></i>Faltan ${fmtMoneda.format(m.porFacturar)} por facturar.</p>` : ''}
+          <a class="btn btn-secundario btn-sm ir-facturas" href="#facturas-${p.id}"><i class="ti ti-arrow-down"></i> Ir a las facturas</a>
+        </div>`;
+    }
 
     default:
       return '';
   }
+}
+
+
+// ---------- Facturas del contrato (varias) y su seguimiento ----------
+
+const ESTADO_FACTURA = {
+  registrada:      { texto: 'Registrada',      clase: 'f-registrada', siguiente: 'contabilidad', boton: 'Turnar a contabilidad', campo: 'Fecha en que pasó a contabilidad' },
+  en_contabilidad: { texto: 'En contabilidad', clase: 'f-contab',     siguiente: 'inicio-pago',  boton: 'Iniciar pago',          campo: 'Fecha de inicio del pago' },
+  en_pago:         { texto: 'En pago',         clase: 'f-pago',       siguiente: 'pagado',       boton: 'Registrar pago',        campo: 'Fecha de pago' },
+  pagada:          { texto: 'Pagada',          clase: 'f-pagada' }
+};
+
+function renderFacturas(p, idxActual) {
+  if (idxActual < indicePaso('factura_recibida')) return '';
+  const m = montosDelContrato(p);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const valor = v => v === null || v === undefined ? '' : Number(v).toFixed(2);
+  const docFila = (archivo, ruta, texto) => archivo
+    ? `<button type="button" class="chip-doc" data-ver-doc="${ruta}" data-pedido-id="${p.id}" title="${escaparHtml(archivo.nombre)}"><i class="ti ti-file-type-pdf"></i>${texto}</button>`
+    : `<label class="chip-doc chip-doc--subir" title="Adjuntar ${texto.toLowerCase()}"><i class="ti ti-paperclip"></i>${texto}<input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}" hidden></label>`;
+
+  const filas = (p.facturas || []).map(f => {
+    const e = ESTADO_FACTURA[f.estado];
+    const avance = e.siguiente ? `
+      <form class="form-avance-factura" data-pedido-id="${p.id}" data-fid="${f.id}" data-avance="${e.siguiente}">
+        <label class="sr-solo" for="av-${f.id}">${e.campo}</label>
+        <input type="date" id="av-${f.id}" name="fecha" value="${hoy}" required title="${e.campo}">
+        <button type="submit" class="btn btn-primario btn-sm">${e.boton}</button>
+      </form>` : `<span class="f-listo"><i class="ti ti-circle-check"></i> Pagada el ${fmtFecha(f.fechaPagado)}</span>`;
+    return `
+      <li class="factura-item ${e.clase}">
+        <div class="fi-principal">
+          <span class="fi-no">${escaparHtml(f.noFactura)}</span>
+          <span class="fi-desc">${escaparHtml(f.descripcion || '')}</span>
+          <span class="fi-meta">${fmtFecha(f.fecha)}${f.fechaContabilidad ? ' · contab. ' + fmtFecha(f.fechaContabilidad) : ''}${f.fechaInicioPago ? ' · pago iniciado ' + fmtFecha(f.fechaInicioPago) : ''}</span>
+        </div>
+        <span class="fi-monto">${fmtMoneda.format(f.monto)}</span>
+        <span class="fi-estado">${e.texto}</span>
+        <div class="fi-docs">
+          ${docFila(f.documento, 'documento-factura-' + f.id, 'Factura')}
+          ${f.estado === 'pagada' || f.estado === 'en_pago' ? docFila(f.comprobante, 'documento-pago-' + f.id, 'Comprobante de pago') : ''}
+        </div>
+        <div class="fi-accion">${avance}</div>
+        ${f.estado !== 'pagada' ? `<button type="button" class="btn-icono" data-eliminar-factura="${f.id}" data-pedido-id="${p.id}" title="Eliminar factura" aria-label="Eliminar factura ${escaparHtml(f.noFactura)}"><i class="ti ti-trash"></i></button>` : ''}
+      </li>`;
+  }).join('');
+
+  const puedeAgregar = m.porFacturar === null || m.porFacturar > 0.005;
+  const formNueva = puedeAgregar && (p.facturas || []).length ? `
+    <details class="nueva-factura">
+      <summary><i class="ti ti-plus"></i> Registrar otra factura <span>· por facturar ${m.porFacturar !== null ? fmtMoneda.format(m.porFacturar) : ''}</span></summary>
+      <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="factura-nueva" data-doc="documento-factura">
+        <div class="fila-formulario fila-4">
+          <label>No. de factura<input type="text" name="noFactura" required></label>
+          <label>Fecha<input type="date" name="fecha" value="${hoy}" required></label>
+          <label>Monto<input type="number" name="monto" step="0.01" min="0.01" max="${valor(m.porFacturar)}" value="${valor(m.porFacturar)}" required></label>
+          <label>Descripción<input type="text" name="descripcion" value="${escaparHtml(p.producto)}" required></label>
+        </div>
+        ${campoDocumento('Adjuntar la factura')}
+        <button type="submit" class="btn btn-primario btn-sm">Registrar factura <i class="ti ti-arrow-right"></i></button>
+      </form>
+    </details>` : (!puedeAgregar ? `<p class="facturas-completo"><i class="ti ti-circle-check"></i> Facturación completa: ${fmtMoneda.format(m.facturado)} de ${fmtMoneda.format(m.disponible)}.</p>` : '');
+
+  return `
+    <div class="bloque-facturas" id="facturas-${p.id}">
+      <div class="subseccion-titulo">Facturas <span class="facturas-resumen">${m.numFacturas} · ${fmtMoneda.format(m.facturado)} facturado${m.disponible !== null ? ' de ' + fmtMoneda.format(m.disponible) : ''}</span></div>
+      ${filas ? `<ul class="lista-facturas">${filas}</ul>` : '<p class="texto-suave">Aún no hay facturas.</p>'}
+      ${formNueva}
+    </div>`;
 }

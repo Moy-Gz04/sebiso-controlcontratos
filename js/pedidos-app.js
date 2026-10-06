@@ -81,6 +81,8 @@ function adjuntarEventosPedidos() {
       const aut = Number(input.dataset.autorizado), ej = Number(input.value);
       if (!input.value || isNaN(ej)) { salida.textContent = ''; return; }
       if (ej > aut) { salida.textContent = 'No puede ser mayor al autorizado (' + fmtMoneda.format(aut) + ').'; salida.classList.add('error'); return; }
+      const fac = Number(input.dataset.facturado || 0);
+      if (ej < fac) { salida.textContent = 'No puede ser menor a lo ya facturado (' + fmtMoneda.format(fac) + ').'; salida.classList.add('error'); return; }
       salida.classList.remove('error');
       salida.textContent = 'Reducción: ' + fmtMoneda.format(aut - ej) + ' · el contrato queda en ' + fmtMoneda.format(ej);
     };
@@ -142,10 +144,17 @@ function adjuntarEventosPedidos() {
       try {
         if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
         boton.disabled = true;
-        await StorePedidos.registrarPaso(id, form.dataset.accion, cuerpo);
-        let aviso = 'Paso registrado.', error = false;
-        if (doc && form.dataset.doc) {
-          try { await StorePedidos.subirDocumento(id, form.dataset.doc, doc); aviso = 'Paso registrado con su documento.'; }
+        let rutaDoc = form.dataset.doc;
+        if (form.dataset.accion === 'factura-nueva') {
+          // Las facturas se agregan a una lista; su documento lleva el número de la factura
+          const r = await StorePedidos.agregarFactura(id, cuerpo);
+          rutaDoc = 'documento-factura-' + r.facturaId;
+        } else {
+          await StorePedidos.registrarPaso(id, form.dataset.accion, cuerpo);
+        }
+        let aviso = form.dataset.accion === 'factura-nueva' ? 'Factura registrada.' : 'Paso registrado.', error = false;
+        if (doc && rutaDoc) {
+          try { await StorePedidos.subirDocumento(id, rutaDoc, doc); aviso = aviso.replace('.', ' con su documento.'); }
           catch (err) { aviso = 'Paso registrado, pero el documento no se subió: ' + err.message + ' Súbelo desde el detalle.'; error = true; }
         }
         tarjetasPedidoExpandidas.add(id);
@@ -155,6 +164,43 @@ function adjuntarEventosPedidos() {
         boton.disabled = false;
         mostrarAviso(err.message, true);
       }
+    });
+  });
+
+  // Avance de cada factura (contabilidad → inicio de pago → pagada)
+  contenedor.querySelectorAll('.form-avance-factura').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = Number(form.dataset.pedidoId);
+      const boton = form.querySelector('button');
+      try {
+        boton.disabled = true;
+        await StorePedidos.avanzarFactura(id, Number(form.dataset.fid), form.dataset.avance, form.fecha.value);
+        tarjetasPedidoExpandidas.add(id);
+        await renderListadoPedidos();
+        mostrarAviso('Factura actualizada.');
+      } catch (err) { boton.disabled = false; mostrarAviso(err.message, true); }
+    });
+  });
+
+  // Eliminar una factura capturada por error
+  contenedor.querySelectorAll('[data-eliminar-factura]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.pedidoId);
+      pedirConfirmacion({
+        titulo: 'Eliminar factura',
+        mensaje: '¿Eliminar esta factura y sus documentos? Los montos del contrato se recalculan.',
+        textoConfirmar: 'Sí, eliminar',
+        peligro: true,
+        accion: async () => {
+          try {
+            await StorePedidos.eliminarFactura(id, Number(btn.dataset.eliminarFactura));
+            tarjetasPedidoExpandidas.add(id);
+            await renderListadoPedidos();
+            mostrarAviso('Factura eliminada.');
+          } catch (err) { mostrarAviso(err.message, true); }
+        }
+      });
     });
   });
 

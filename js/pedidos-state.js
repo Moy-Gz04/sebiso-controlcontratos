@@ -24,13 +24,21 @@ function calcularMontoDisponiblePedido(pedido) {
 // Las cantidades del contrato en cada etapa (todas a la mano)
 function montosDelContrato(p) {
   const autorizado = calcularMontoDisponiblePedido(p);
-  const facturado = p.factura ? p.factura.monto : null;
+  const facturas = p.facturas || [];
+  const facturado = facturas.reduce((t, f) => t + Number(f.monto), 0);
+  const pagado = facturas.filter(f => f.estado === 'pagada').reduce((t, f) => t + Number(f.monto), 0);
   const ejercido = p.reduccion ? p.reduccion.montoEjercido : null;
+  // Lo que se puede facturar: lo ejercido tras la reducción o, si no hay, el autorizado vigente
+  const disponible = ejercido !== null ? ejercido : autorizado;
   return {
     contratado: Number(p.montoEstimado || 0),
     autorizado,
     contrarecibo: p.contrarecibo ? p.contrarecibo.monto : null,
     facturado,
+    pagado,
+    numFacturas: facturas.length,
+    disponible,
+    porFacturar: disponible !== null ? Math.max(0, Math.round((disponible - facturado) * 100) / 100) : null,
     ejercido,
     // lo que se libera con la reducción (autorizado − ejercido)
     reduccion: ejercido !== null && autorizado !== null ? autorizado - ejercido : null,
@@ -96,6 +104,19 @@ const StorePedidos = {
   // Registra cualquier paso del flujo (ruta = 'oficio-autorizacion', 'contrarecibo', …)
   async registrarPaso(id, ruta, cuerpo) {
     const datos = await peticion(`/pedidos/${id}/${ruta}`, { method: 'PUT', body: JSON.stringify(cuerpo) });
+    return datos.pedido;
+  },
+
+  // Facturas: varias por contrato, cada una con su seguimiento
+  async agregarFactura(id, cuerpo) {
+    return peticion(`/pedidos/${id}/facturas`, { method: 'POST', body: JSON.stringify(cuerpo) });
+  },
+  async avanzarFactura(id, fid, avance, fecha) {
+    const datos = await peticion(`/pedidos/${id}/facturas/${fid}/${avance}`, { method: 'PUT', body: JSON.stringify({ fecha }) });
+    return datos.pedido;
+  },
+  async eliminarFactura(id, fid) {
+    const datos = await peticion(`/pedidos/${id}/facturas/${fid}`, { method: 'DELETE' });
     return datos.pedido;
   },
 

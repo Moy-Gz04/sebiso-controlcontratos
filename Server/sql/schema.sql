@@ -136,3 +136,20 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS reduccion_fecha DATE;
 ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_estatus_check;
 UPDATE pedidos SET estatus = 'pedido_creado' WHERE estatus NOT IN ('pedido_creado','oficio_autorizado','contrarecibo','adecuacion','factura_recibida','reduccion','entregado','en_contabilidad','en_pago','pagado') OR (estatus = 'entregado' AND aut_folio IS NULL);
 ALTER TABLE pedidos ADD CONSTRAINT pedidos_estatus_check CHECK (estatus IN ('pedido_creado','oficio_autorizado','contrarecibo','adecuacion','factura_recibida','reduccion','entregado','en_contabilidad','en_pago','pagado'));
+
+-- Varias facturas por contrato (2026-10-06): cada una con su propio seguimiento
+-- (contabilidad → inicio de pago → pagada). Sus archivos van en pedido_archivos
+-- con tipo 'factura-<id>' y el comprobante de pago con 'pago-<id>'.
+CREATE TABLE IF NOT EXISTS pedido_facturas (
+  id                 SERIAL PRIMARY KEY,
+  pedido_id          INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+  no_factura         VARCHAR(80) NOT NULL,
+  fecha              DATE NOT NULL,
+  descripcion        TEXT NOT NULL,
+  monto              NUMERIC(14,2) NOT NULL CHECK (monto > 0),
+  fecha_contabilidad DATE,
+  fecha_inicio_pago  DATE,
+  fecha_pagado       DATE,
+  creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS pedido_facturas_pedido ON pedido_facturas (pedido_id);
