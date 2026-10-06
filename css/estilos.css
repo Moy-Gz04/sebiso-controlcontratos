@@ -1001,6 +1001,19 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
   }
   .lista-facturas .fi-meta span { white-space: normal; }
 }
+/* Ventana flotante de los formularios de contrarrecibo */
+.modal-cr { position: relative; max-width: 620px; padding: 28px 28px 24px; }
+.modal-cr .fi-oficio { margin: 0; padding: 0; border: 0; background: none; }
+.modal-cr .fi-oficio-titulo { font-size: 18px; font-weight: 700; color: var(--guinda-oscuro); margin: 0 32px 18px 0; }
+.modal-cr .fila-formulario, .modal-cr .fila-formulario.fila-4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; margin-bottom: 12px; }
+.modal-cr .fi-oficio-doc, .modal-cr .zona-archivo { grid-column: 1 / -1; }
+.modal-cr .ppa-botones { margin-top: 16px; justify-content: flex-end; }
+.modal-cr-cerrar { position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #F6F3EE; color: var(--texto-suave); cursor: pointer; display: grid; place-items: center; font-size: 18px; }
+.modal-cr-cerrar:hover { background: var(--dorado-suave); color: var(--guinda); }
+.nueva-cr-btn { width: 100%; display: flex; align-items: center; gap: 6px; padding: 12px 14px; font: inherit; font-weight: 700; font-size: 13.5px; color: var(--guinda); cursor: pointer; text-align: left; }
+.nueva-cr-btn span { font-weight: 500; color: var(--texto-tenue); }
+.nueva-cr-btn:hover { border-color: var(--guinda-claro); }
+@media (max-width: 560px) { .modal-cr .fila-formulario, .modal-cr .fila-formulario.fila-4 { grid-template-columns: 1fr; } .modal-cr { padding: 24px 18px 18px; } }
 /* Contrarrecibos: mini recorrido de cada uno y acciones */
 .cr-etapas { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .cr-etapa { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--texto-tenue); background: #F6F3EE; border: 1px solid transparent; }

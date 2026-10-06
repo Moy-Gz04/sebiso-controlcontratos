@@ -734,14 +734,18 @@ function renderFacturas(p, idxActual) {
 
   const puedeAgregar = m.porRegistrar === null || m.porRegistrar > 0.005;
   const formNueva = puedeAgregar && (p.facturas || []).length ? `
-    <details class="nueva-factura">
-      <summary><i class="ti ti-plus"></i> Registrar otro contrarrecibo <span>· por registrar ${m.porRegistrar !== null ? fmtMoneda.format(m.porRegistrar) : ''}</span></summary>
+    <button type="button" class="nueva-factura nueva-cr-btn" data-abrir-cr="cr-nuevo-${p.id}"><i class="ti ti-plus"></i> Registrar otro contrarrecibo <span>· por registrar ${m.porRegistrar !== null ? fmtMoneda.format(m.porRegistrar) : ''}</span></button>
+    <div class="fi-oficio" id="cr-nuevo-${p.id}" hidden>
       <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="contrarecibo-nuevo" data-doc="documento-contrarecibo">
+        <div class="fi-oficio-titulo">Nuevo contrarrecibo</div>
         ${camposContrarecibo(valor(m.porRegistrar), hoy)}
         ${campoDocumento('Adjuntar el contrarrecibo')}
-        <button type="submit" class="btn btn-primario btn-sm">Registrar contrarrecibo <i class="ti ti-arrow-right"></i></button>
+        <div class="ppa-botones">
+          <button type="submit" class="btn btn-primario btn-sm">Registrar contrarrecibo <i class="ti ti-arrow-right"></i></button>
+          <button type="button" class="btn btn-texto btn-sm" data-abrir-cr="cr-nuevo-${p.id}">Cancelar</button>
+        </div>
       </form>
-    </details>` : (!puedeAgregar ? `<p class="facturas-completo"><i class="ti ti-circle-check"></i> Monto cubierto: ${fmtMoneda.format(m.contrarecibos)} de ${fmtMoneda.format(m.disponible)} en contrarrecibos.</p>` : '');
+    </div>` : (!puedeAgregar ? `<p class="facturas-completo"><i class="ti ti-circle-check"></i> Monto cubierto: ${fmtMoneda.format(m.contrarecibos)} de ${fmtMoneda.format(m.disponible)} en contrarrecibos.</p>` : '');
 
   return `
     <div class="bloque-facturas" id="facturas-${p.id}">

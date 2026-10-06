@@ -1,3 +1,35 @@
+// Ventana flotante para los formularios de contrarrecibos: el panel se mueve
+// a la ventana (conserva sus eventos) y regresa a su lugar al cerrar.
+let modalCR = null;
+function abrirModalCR(panel) {
+  cerrarModalCR();
+  const fondo = document.createElement('div');
+  fondo.className = 'modal-fondo activo modal-cr-fondo';
+  fondo.innerHTML = '<div class="modal-caja modal-cr" role="dialog" aria-modal="true"><button type="button" class="modal-cr-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button></div>';
+  const caja = fondo.firstChild;
+  const marca = document.createComment('panel-cr');
+  panel.parentNode.insertBefore(marca, panel);
+  caja.appendChild(panel);
+  panel.hidden = false;
+  const titulo = panel.querySelector('.fi-oficio-titulo');
+  if (titulo) caja.setAttribute('aria-label', titulo.textContent.trim());
+  document.body.appendChild(fondo);
+  fondo.addEventListener('mousedown', e => { if (e.target === fondo) cerrarModalCR(); });
+  caja.querySelector('.modal-cr-cerrar').addEventListener('click', cerrarModalCR);
+  modalCR = { fondo, panel, marca };
+  const c = panel.querySelector('input:not([type="hidden"]):not([type="file"])');
+  if (c) setTimeout(() => c.focus(), 30);
+}
+function cerrarModalCR() {
+  if (!modalCR) return;
+  const { fondo, panel, marca } = modalCR;
+  modalCR = null;
+  panel.hidden = true;
+  if (marca.parentNode) marca.parentNode.replaceChild(panel, marca);
+  fondo.remove();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && modalCR) cerrarModalCR(); });
+
 // =========================================================
 // pedidos-app.js
 // Cableado de eventos de las tarjetas de Pedidos: expandir,
@@ -185,13 +217,13 @@ function adjuntarEventosPedidos() {
   });
 
   // Abrir / cerrar el formulario de un avance de contrarrecibo
+  // Los formularios de cada contrarrecibo se abren en una ventana flotante
+  cerrarModalCR();
   contenedor.querySelectorAll('[data-abrir-cr]').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.closest('.modal-cr')) { cerrarModalCR(); return; }   // "Cancelar" dentro de la ventana
       const panel = document.getElementById(btn.dataset.abrirCr);
-      if (!panel) return;
-      contenedor.querySelectorAll('.fi-oficio').forEach(o => { if (o !== panel) o.hidden = true; });
-      panel.hidden = !panel.hidden;
-      if (!panel.hidden) { const c = panel.querySelector('input:not([type="hidden"]):not([type="file"])'); if (c) c.focus(); }
+      if (panel) abrirModalCR(panel);
     });
   });
   contenedor.querySelectorAll('.form-avance-cr input[name="documento"]').forEach(input => {
