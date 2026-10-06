@@ -175,6 +175,13 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  contenedor.querySelectorAll('.detalle-oficios').forEach(d => {
+    d.addEventListener('toggle', () => {
+      const id = Number(d.dataset.oficiosId);
+      if (d.open) tarjetasOficiosAbiertos.add(id); else tarjetasOficiosAbiertos.delete(id);
+    });
+  });
+
   // Avance de cada factura (contabilidad → inicio de pago → pagada)
   contenedor.querySelectorAll('.form-avance-factura').forEach(form => {
     form.addEventListener('submit', async (e) => {

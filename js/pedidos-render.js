@@ -8,7 +8,8 @@
 
 let pedidosCache = [];
 const tarjetasPedidoExpandidas = new Set();
-const tarjetasMontosAbiertas = new Set();   // "Cantidades del contrato" desplegadas
+const tarjetasMontosAbiertas = new Set();
+const tarjetasOficiosAbiertos = new Set();   // "Oficios de ampliación / cancelación" desplegados   // "Cantidades del contrato" desplegadas
 let filtroEtapa = '';          // '' = todas las etapas
 let ultimaTarjetaAbierta = null; // para animar solo la que se acaba de abrir
 let animarEntrada = true;      // la entrada escalonada solo al cargar o filtrar
@@ -340,7 +341,15 @@ function renderCuerpoPedido(p) {
   // Oficios de ampliación/cancelación: disponibles desde que hay oficio de autorización
   let oficiosHtml = '';
   if (idxActual >= indicePaso('oficio_autorizado')) {
-    oficiosHtml = `<div class="bloque-oficios"><div class="subseccion-titulo">Oficios de ampliación / cancelación</div>`;
+    // Plegado como "Cantidades del contrato": se abre al tocar el encabezado
+    const nOf = p.oficios.length;
+    const netoOf = p.oficios.reduce((t, of) => t + (of.tipo === 'cancelacion' ? -1 : 1) * Number(of.monto), 0);
+    oficiosHtml = `<details class="detalle-montos detalle-oficios" ${tarjetasOficiosAbiertos.has(p.id) ? 'open' : ''} data-oficios-id="${p.id}">
+      <summary>
+        <span class="dm-titulo"><i class="ti ti-chevron-right"></i> Oficios de ampliación / cancelación</span>
+        <span class="dm-resumen">${nOf ? `${nOf} oficio${nOf > 1 ? 's' : ''} · neto <b>${netoOf < 0 ? '−' : '+'}${fmtMoneda.format(Math.abs(netoOf))}</b>` : 'Sin ajustes'}</span>
+      </summary>
+      <div class="bloque-oficios">`;
     if (p.oficios.length === 0) {
       oficiosHtml += `<p class="texto-suave">Aún no hay ajustes sobre el monto autorizado.</p>`;
     } else {
@@ -384,7 +393,8 @@ function renderCuerpoPedido(p) {
         </div>
         <button type="submit" class="btn btn-secundario btn-sm"><i class="ti ti-plus"></i> Agregar oficio</button>
       </form>
-    </div>`;
+    </div>
+    </details>`;
   }
 
   const acciones = `

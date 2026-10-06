@@ -961,3 +961,6 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
   50% { box-shadow: 0 0 0 7px rgba(198, 40, 40, 0); opacity: .55; }
 }
 @keyframes faltanParpadeo { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+/* Oficios de ampliación/cancelación plegados */
+.detalle-oficios .bloque-oficios { margin: 0; padding: 0 16px 16px; border: 0; }
+.detalle-oficios .bloque-oficios .texto-suave { margin-top: 0; }
