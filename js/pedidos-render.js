@@ -292,7 +292,7 @@ function renderCuerpoPedido(p) {
         return `
           <li class="rec-paso ${estado}" style="--j:${i}" ${faltanFacturas ? `title="${textoFaltan(mRec)}"` : ''}>
             <span class="rec-circulo"><i class="ti ${icono}"></i></span>
-            <span class="rec-label">${paso.label}${faltanFacturas ? `<small>${(mRec.porRegistrar || 0) > 0.005 ? 'faltan contrarrecibos' : 'faltan facturas'}</small>` : paso.opcional ? `<small>${omitido ? 'omitido' : 'opcional'}</small>` : ''}</span>
+            <span class="rec-label">${paso.label}${faltanFacturas ? `<small>${(mRec.porRegistrar || 0) > 0.005 ? ((mRec.porFacturar || 0) > 0.005 ? 'faltan contrarrecibos y facturas' : 'faltan contrarrecibos') : 'faltan facturas'}</small>` : paso.opcional ? `<small>${omitido ? 'omitido' : 'opcional'}</small>` : ''}</span>
           </li>`;
       }).join('')}
     </ol>
