@@ -856,3 +856,7 @@ tbody tr:last-child td { border-bottom: none; }
   .recorrido::before, .recorrido::after { display: block; }
   .bloque-documentos { grid-template-columns: 1fr; }
 }
+/* Las cifras grandes del resumen no deben desbordar la tarjeta en celular */
+.kpi { min-width: 0; }
+.kpi > div { min-width: 0; }
+.kpi-valor, .kpi-sub, .kpi-etiqueta { overflow-wrap: anywhere; }
