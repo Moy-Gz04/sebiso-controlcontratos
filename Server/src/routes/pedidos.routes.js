@@ -41,6 +41,8 @@ function facturaAJson(f, archivos) {
   return {
     id: f.id, noFactura: f.no_factura, fecha: f.fecha, descripcion: f.descripcion, monto: Number(f.monto),
     fechaContabilidad: f.fecha_contabilidad, fechaInicioPago: f.fecha_inicio_pago, fechaPagado: f.fecha_pagado, estado,
+    procesoPago: f.fecha_inicio_pago ? { fecha: f.fecha_inicio_pago, monto: f.proc_pago_monto !== null ? Number(f.proc_pago_monto) : null,
+      documento: archivoAJson(archivos.find(a => a.tipo === 'procpago-' + f.id)) } : null,
     oficioContabilidad: f.contab_oficio ? { noOficio: f.contab_oficio, fecha: f.fecha_contabilidad, monto: Number(f.contab_monto),
       documento: archivoAJson(archivos.find(a => a.tipo === 'contab-' + f.id)) } : null,
     documento: archivoAJson(archivos.find(a => a.tipo === 'factura-' + f.id)),
@@ -155,9 +157,9 @@ function tipoDeRuta(ruta) {
   const m = /^documento-([a-z]+)(?:-(\d+))?$/.exec(String(ruta || ''));
   if (!m) return null;
   if (!m[2]) return PASOS_CON_DOCUMENTO.includes(m[1]) ? m[1] : null;
-  return ['factura', 'pago', 'contab'].includes(m[1]) ? m[1] + '-' + m[2] : null;
+  return ['factura', 'pago', 'contab', 'procpago'].includes(m[1]) ? m[1] + '-' + m[2] : null;
 }
-const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarecibo', adecuacion: 'Oficio adecuacion', reduccion: 'Reduccion', factura: 'Factura', pago: 'Comprobante de pago', contab: 'Oficio contabilidad factura' };
+const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarecibo', adecuacion: 'Oficio adecuacion', reduccion: 'Reduccion', factura: 'Factura', pago: 'Comprobante de pago', contab: 'Oficio contabilidad factura', procpago: 'Proceso de pago factura' };
 const etiquetaArchivo = tipo => { const [t, n] = tipo.split('-'); return (ETIQUETA_ARCHIVO[t] || 'Documento') + (n ? ' ' + n : ''); };
 
 // Los documentos de una factura o de su pago solo se aceptan si la factura es del contrato
@@ -451,6 +453,9 @@ router.put('/:id/facturas/:fid/:avance', async (req, res, next) => {
   const oficioNo = texto(b.noOficio), oficioMonto = num(b.monto);
   if (esContab && !oficioNo) return res.status(400).json({ ok: false, mensaje: 'Falta el No. de oficio para contabilidad' });
   if (esContab && !(oficioMonto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto del oficio debe ser mayor a 0' });
+  // Iniciar el proceso de pago también registra un monto (y su documento)
+  const esInicioPago = req.params.avance === 'inicio-pago';
+  if (esInicioPago && !(oficioMonto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto del proceso de pago debe ser mayor a 0' });
   try {
     const { rows } = await db.query('SELECT * FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
     if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
@@ -459,6 +464,8 @@ router.put('/:id/facturas/:fid/:avance', async (req, res, next) => {
     if (av.antes && !fac[av.antes]) return res.status(409).json({ ok: false, mensaje: 'Esta factura aún no está en el paso previo.' });
     if (esContab) {
       await db.query('UPDATE pedido_facturas SET fecha_contabilidad=$1, contab_oficio=$2, contab_monto=$3 WHERE id=$4', [f, oficioNo, oficioMonto, fid]);
+    } else if (esInicioPago) {
+      await db.query('UPDATE pedido_facturas SET fecha_inicio_pago=$1, proc_pago_monto=$2 WHERE id=$3', [f, oficioMonto, fid]);
     } else {
       await db.query(`UPDATE pedido_facturas SET ${av.columna}=$1 WHERE id=$2`, [f, fid]);
     }
@@ -497,8 +504,8 @@ router.delete('/:id/facturas/:fid', async (req, res) => {
     const { rows } = await db.query('SELECT fecha_pagado FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
     if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
     if (rows[0].fecha_pagado) return res.status(409).json({ ok: false, mensaje: 'No se puede eliminar una factura pagada' });
-    const { rows: arch } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4) AND drive_id IS NOT NULL', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid]);
-    await db.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4)', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid]);
+    const { rows: arch } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4,$5) AND drive_id IS NOT NULL', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid, 'procpago-' + fid]);
+    await db.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4,$5)', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid, 'procpago-' + fid]);
     await db.query('DELETE FROM pedido_facturas WHERE id=$1', [fid]);
     arch.forEach(a => papeleraDrive(a.drive_id));
     const { rows: quedan } = await db.query('SELECT count(*)::int n FROM pedido_facturas WHERE pedido_id=$1', [id]);

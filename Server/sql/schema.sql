@@ -162,3 +162,6 @@ ALTER TABLE pedido_oficios ADD COLUMN IF NOT EXISTS posterior_reduccion BOOLEAN 
 -- y su documento (pedido_archivos tipo 'contab-<id factura>').
 ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS contab_oficio VARCHAR(80);
 ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS contab_monto NUMERIC(14,2);
+
+-- Iniciar el proceso de pago registra monto y documento (tipo 'procpago-<id>').
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS proc_pago_monto NUMERIC(14,2);

@@ -666,8 +666,31 @@ function renderFacturas(p, idxActual) {
           </div>
         </form>
       </div>` : '';
+    // Iniciar el proceso de pago = fecha, monto y documento
+    const panelPago = f.estado === 'en_contabilidad' ? `
+      <div class="fi-oficio" id="proc-pago-${f.id}" hidden>
+        <form class="form-proc-pago" data-pedido-id="${p.id}" data-fid="${f.id}">
+          <div class="fi-oficio-titulo">Proceso de pago · factura ${escaparHtml(f.noFactura)}</div>
+          <div class="fila-formulario fila-4">
+            <label>Fecha<input type="date" name="fecha" value="${hoy}" required></label>
+            <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${valor(f.monto)}" required></label>
+            <label class="zona-archivo zona-archivo--opcional fi-oficio-doc" style="grid-column: span 2">
+              <i class="ti ti-file-upload"></i>
+              <span class="zona-archivo__texto" data-nombre-archivo data-texto-original="Adjuntar el documento del proceso de pago">Adjuntar el documento del proceso de pago</span>
+              <input type="file" name="documento" accept=".pdf,.doc,.docx,image/*">
+            </label>
+          </div>
+          <div class="ppa-botones">
+            <button type="submit" class="btn btn-primario btn-sm">Iniciar proceso de pago <i class="ti ti-arrow-right"></i></button>
+            <button type="button" class="btn btn-texto btn-sm" data-abrir-pago="${f.id}">Cancelar</button>
+          </div>
+        </form>
+      </div>` : '';
+    const pp = f.procesoPago;
     const avance = f.estado === 'registrada'
       ? `<button type="button" class="btn btn-primario btn-sm" data-abrir-oficio="${f.id}">Turnar a contabilidad</button>`
+      : f.estado === 'en_contabilidad'
+      ? `<button type="button" class="btn btn-primario btn-sm" data-abrir-pago="${f.id}">Iniciar pago</button>`
       : e.siguiente ? `
       <form class="form-avance-factura" data-pedido-id="${p.id}" data-fid="${f.id}" data-avance="${e.siguiente}">
         <label class="sr-solo" for="av-${f.id}">${e.campo}</label>
@@ -679,7 +702,7 @@ function renderFacturas(p, idxActual) {
         <div class="fi-principal">
           <span class="fi-no">${escaparHtml(f.noFactura)}</span>
           <span class="fi-desc">${escaparHtml(f.descripcion || '')}</span>
-          <span class="fi-meta">${fmtFecha(f.fecha)}${oc ? ` · oficio contab. ${escaparHtml(oc.noOficio)} (${fmtFecha(oc.fecha)}, ${fmtMoneda.format(oc.monto)})` : f.fechaContabilidad ? ' · contab. ' + fmtFecha(f.fechaContabilidad) : ''}${f.fechaInicioPago ? ' · pago iniciado ' + fmtFecha(f.fechaInicioPago) : ''}</span>
+          <span class="fi-meta">${fmtFecha(f.fecha)}${oc ? ` · oficio contab. ${escaparHtml(oc.noOficio)} (${fmtFecha(oc.fecha)}, ${fmtMoneda.format(oc.monto)})` : f.fechaContabilidad ? ' · contab. ' + fmtFecha(f.fechaContabilidad) : ''}${f.fechaInicioPago ? ' · pago iniciado ' + fmtFecha(f.fechaInicioPago) + (pp && pp.monto !== null ? ' (' + fmtMoneda.format(pp.monto) + ')' : '') : ''}</span>
           ${faltaOficio ? `<button type="button" class="fi-falta-oficio" data-abrir-oficio="${f.id}"><i class="ti ti-alert-triangle"></i> Falta el oficio de contabilidad · completar</button>` : ''}
         </div>
         <span class="fi-monto">${fmtMoneda.format(f.monto)}</span>
@@ -687,11 +710,13 @@ function renderFacturas(p, idxActual) {
         <div class="fi-docs">
           ${docFila(f.documento, 'documento-factura-' + f.id, 'Factura')}
           ${oc ? docFila(oc.documento, 'documento-contab-' + f.id, 'Oficio contab.') : ''}
+          ${pp ? docFila(pp.documento, 'documento-procpago-' + f.id, 'Proceso de pago') : ''}
           ${f.estado === 'pagada' || f.estado === 'en_pago' ? docFila(f.comprobante, 'documento-pago-' + f.id, 'Comprobante de pago') : ''}
         </div>
         <div class="fi-accion">${avance}</div>
         ${f.estado !== 'pagada' ? `<button type="button" class="btn-icono" data-eliminar-factura="${f.id}" data-pedido-id="${p.id}" title="Eliminar factura" aria-label="Eliminar factura ${escaparHtml(f.noFactura)}"><i class="ti ti-trash"></i></button>` : ''}
         ${panelOficio}
+        ${panelPago}
       </li>`;
   }).join('');
 

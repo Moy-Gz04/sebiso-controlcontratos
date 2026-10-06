@@ -241,6 +241,41 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  // Proceso de pago: abrir panel y registrar fecha, monto y documento
+  contenedor.querySelectorAll('[data-abrir-pago]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = document.getElementById('proc-pago-' + btn.dataset.abrirPago);
+      if (panel) panel.hidden = !panel.hidden;
+    });
+  });
+  contenedor.querySelectorAll('.form-proc-pago input[name="documento"]').forEach(input => {
+    input.addEventListener('change', () => {
+      const et = input.closest('.zona-archivo').querySelector('[data-nombre-archivo]');
+      et.textContent = input.files[0] ? input.files[0].name : et.dataset.textoOriginal;
+    });
+  });
+  contenedor.querySelectorAll('.form-proc-pago').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = Number(form.dataset.pedidoId), fid = Number(form.dataset.fid);
+      const boton = form.querySelector('button[type="submit"]');
+      const doc = form.documento.files[0];
+      try {
+        if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error("El documento pesa más de " + MAX_CONTRATO_MB + " MB.");
+        boton.disabled = true;
+        await StorePedidos.avanzarFactura(id, fid, 'inicio-pago', form.fecha.value, { monto: form.monto.value });
+        let aviso = 'Proceso de pago iniciado.', error = false;
+        if (doc) {
+          try { await StorePedidos.subirDocumento(id, 'documento-procpago-' + fid, doc); aviso = 'Proceso de pago iniciado con su documento.'; }
+          catch (err) { aviso = 'Se registró, pero el documento no se subió: ' + err.message + ' Súbelo desde la factura.'; error = true; }
+        }
+        tarjetasPedidoExpandidas.add(id);
+        await renderListadoPedidos();
+        mostrarAviso(aviso, error);
+      } catch (err) { boton.disabled = false; mostrarAviso(err.message, true); }
+    });
+  });
+
   // Eliminar una factura capturada por error
   contenedor.querySelectorAll('[data-eliminar-factura]').forEach(btn => {
     btn.addEventListener('click', () => {
