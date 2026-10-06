@@ -826,3 +826,6 @@ tbody tr:last-child td { border-bottom: none; }
 .tc-adjunto .ti { color: var(--exito) !important; }
 .tc-sin-adjunto { color: var(--ambar); }
 .tc-sin-adjunto .ti { color: var(--ambar) !important; }
+
+.form-paso-pedido .zona-archivo--opcional { margin: 4px 0 14px; padding: 12px; }
+.form-paso-pedido .zona-archivo--opcional .ti { font-size: 22px; }

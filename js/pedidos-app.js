@@ -67,6 +67,35 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  // Documento de entrega: ver y subir / reemplazar
+  contenedor.querySelectorAll('[data-ver-entrega]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try { await StorePedidos.abrirDocumentoEntrega(Number(btn.dataset.verEntrega)); }
+      catch (err) { mostrarAviso(err.message, true); }
+    });
+  });
+  contenedor.querySelectorAll('[data-subir-entrega]').forEach(input => {
+    input.addEventListener('change', async () => {
+      const archivo = input.files[0];
+      if (!archivo) return;
+      const id = Number(input.dataset.subirEntrega);
+      try {
+        mostrarAviso('Subiendo documento…');
+        await StorePedidos.subirDocumentoEntrega(id, archivo);
+        tarjetasPedidoExpandidas.add(id);
+        await renderListadoPedidos();
+        mostrarAviso('Documento de entrega guardado.');
+      } catch (err) { mostrarAviso(err.message, true); }
+    });
+  });
+  // Muestra el nombre del archivo elegido en el formulario de entrega
+  contenedor.querySelectorAll('input[name="documentoEntrega"]').forEach(input => {
+    input.addEventListener('change', () => {
+      input.closest('.zona-archivo').querySelector('[data-nombre-archivo]').textContent =
+        input.files[0] ? input.files[0].name : 'Adjuntar documento de entrega (opcional)';
+    });
+  });
+
   contenedor.querySelectorAll('[data-eliminar-pedido]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.eliminarPedido);
@@ -97,9 +126,16 @@ function adjuntarEventosPedidos() {
       const accion = form.dataset.accion;
       try {
         switch (accion) {
-          case 'entrega':
+          case 'entrega': {
+            const doc = form.documentoEntrega && form.documentoEntrega.files[0];
+            if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
             await StorePedidos.registrarEntrega(id, form.fechaEntrega.value);
+            if (doc) {
+              try { await StorePedidos.subirDocumentoEntrega(id, doc); }
+              catch (err) { mostrarAviso('Entrega registrada, pero el documento no se subió: ' + err.message, true); }
+            }
             break;
+          }
           case 'oficio-adecuacion':
             await StorePedidos.registrarOficioAdecuacion(id, {
               folio: form.folio.value.trim(),

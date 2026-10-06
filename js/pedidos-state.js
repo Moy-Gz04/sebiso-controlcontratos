@@ -30,10 +30,10 @@ function archivoABase64(archivo) {
 
 const StorePedidos = {
   // Sube (o reemplaza) el archivo del contrato: PDF, Word o imagen
-  async subirContrato(id, archivo) {
+  async subirContrato(id, archivo, ruta = 'contrato') {
     if (archivo.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El archivo pesa más de ${MAX_CONTRATO_MB} MB.`);
     const base64 = await archivoABase64(archivo);
-    const datos = await peticion(`/pedidos/${id}/contrato`, {
+    const datos = await peticion(`/pedidos/${id}/${ruta}`, {
       method: 'PUT',
       body: JSON.stringify({ nombre: archivo.name, mime: archivo.type || 'application/octet-stream', base64 })
     });
@@ -41,11 +41,15 @@ const StorePedidos = {
   },
 
   // Abre el contrato en otra pestaña (se pide con el token de la sesión)
-  async abrirContrato(id) {
+  // Documento opcional de la entrega (mismas reglas que el contrato)
+  subirDocumentoEntrega(id, archivo) { return this.subirContrato(id, archivo, 'documento-entrega'); },
+  abrirDocumentoEntrega(id) { return this.abrirContrato(id, 'documento-entrega'); },
+
+  async abrirContrato(id, ruta = 'contrato') {
     const ventana = window.open('', '_blank');   // se abre ya, para que el navegador no la bloquee
     try {
-      const resp = await fetch(`${API_BASE_URL}/pedidos/${id}/contrato`, { headers: { Authorization: `Bearer ${tokenSesion}` } });
-      if (!resp.ok) throw new Error('No se pudo abrir el contrato.');
+      const resp = await fetch(`${API_BASE_URL}/pedidos/${id}/${ruta}`, { headers: { Authorization: `Bearer ${tokenSesion}` } });
+      if (!resp.ok) throw new Error('No se pudo abrir el archivo.');
       const url = URL.createObjectURL(await resp.blob());
       if (ventana) ventana.location = url; else window.open(url, '_blank');
     } catch (err) {

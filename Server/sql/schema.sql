@@ -109,3 +109,9 @@ CREATE TABLE IF NOT EXISTS pedido_archivos (
   datos       BYTEA NOT NULL,
   subido_en   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Varios archivos por pedido, distinguidos por tipo: 'contrato' y 'entrega'
+-- (documento opcional que se adjunta al registrar la entrega).
+ALTER TABLE pedido_archivos ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'contrato';
+ALTER TABLE pedido_archivos DROP CONSTRAINT IF EXISTS pedido_archivos_pedido_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS pedido_archivos_pedido_tipo ON pedido_archivos (pedido_id, tipo);

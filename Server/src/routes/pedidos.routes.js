@@ -25,7 +25,9 @@ function oficioAJson(row) {
   return { id: row.id, tipo: row.tipo, folio: row.folio, monto: Number(row.monto), fecha: row.fecha };
 }
 
-function pedidoAJson(row, oficios, archivo) {
+const archivoAJson = a => a ? { nombre: a.nombre, mime: a.mime, tamano: a.tamano, subidoEn: a.subido_en } : null;
+
+function pedidoAJson(row, oficios, archivos = []) {
   return {
     id: row.id,
     producto: row.producto,
@@ -45,7 +47,8 @@ function pedidoAJson(row, oficios, archivo) {
     estatus: row.estatus,
     creadoEn: row.creado_en,
     oficios: oficios.map(oficioAJson),
-    contrato: archivo ? { nombre: archivo.nombre, mime: archivo.mime, tamano: archivo.tamano, subidoEn: archivo.subido_en } : null
+    contrato: archivoAJson(archivos.find(a => a.tipo === 'contrato')),
+    documentoEntrega: archivoAJson(archivos.find(a => a.tipo === 'entrega'))
   };
 }
 
@@ -53,8 +56,8 @@ async function cargarPedidoCompleto(id) {
   const { rows: pedidoRows } = await db.query('SELECT * FROM pedidos WHERE id = $1', [id]);
   if (pedidoRows.length === 0) return null;
   const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios WHERE pedido_id = $1 ORDER BY id', [id]);
-  const { rows: archivos } = await db.query('SELECT nombre, mime, tamano, subido_en FROM pedido_archivos WHERE pedido_id = $1', [id]);
-  return pedidoAJson(pedidoRows[0], oficios, archivos[0]);
+  const { rows: archivos } = await db.query('SELECT tipo, nombre, mime, tamano, subido_en FROM pedido_archivos WHERE pedido_id = $1', [id]);
+  return pedidoAJson(pedidoRows[0], oficios, archivos);
 }
 
 function validarPasoAnterior(estatusActual, pasoEsperado, res) {
@@ -74,8 +77,8 @@ router.get('/', async (req, res) => {
   try {
     const { rows: pedidos } = await db.query('SELECT * FROM pedidos ORDER BY id DESC');
     const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios ORDER BY id');
-    const { rows: archivos } = await db.query('SELECT pedido_id, nombre, mime, tamano, subido_en FROM pedido_archivos');
-    const resultado = pedidos.map(p => pedidoAJson(p, oficios.filter(o => o.pedido_id === p.id), archivos.find(a => a.pedido_id === p.id)));
+    const { rows: archivos } = await db.query('SELECT pedido_id, tipo, nombre, mime, tamano, subido_en FROM pedido_archivos');
+    const resultado = pedidos.map(p => pedidoAJson(p, oficios.filter(o => o.pedido_id === p.id), archivos.filter(a => a.pedido_id === p.id)));
     res.json({ ok: true, pedidos: resultado });
   } catch (error) {
     console.error('Error en GET /api/pedidos:', error);
@@ -114,11 +117,12 @@ const MIMES_CONTRATO = [
 ];
 const MAX_CONTRATO = 30 * 1024 * 1024;   // 30 MB
 
-router.put('/:id/contrato', async (req, res) => {
+// tipo: 'contrato' (archivo del contrato) o 'entrega' (documento de la entrega, opcional)
+const subirArchivo = tipo => async (req, res) => {
   const id = Number(req.params.id);
   const { nombre, mime, base64 } = req.body || {};
-  if (!nombre || !mime || !base64) return res.status(400).json({ ok: false, mensaje: 'Falta el archivo del contrato' });
-  if (!MIMES_CONTRATO.includes(mime)) return res.status(400).json({ ok: false, mensaje: 'El contrato debe ser PDF, Word o imagen' });
+  if (!nombre || !mime || !base64) return res.status(400).json({ ok: false, mensaje: 'Falta el archivo' });
+  if (!MIMES_CONTRATO.includes(mime)) return res.status(400).json({ ok: false, mensaje: 'El archivo debe ser PDF, Word o imagen' });
   const datos = Buffer.from(base64, 'base64');
   if (datos.length === 0) return res.status(400).json({ ok: false, mensaje: 'El archivo está vacío' });
   if (datos.length > MAX_CONTRATO) return res.status(413).json({ ok: false, mensaje: 'El archivo pesa más de 30 MB' });
@@ -126,31 +130,36 @@ router.put('/:id/contrato', async (req, res) => {
     const { rows: existe } = await db.query('SELECT id FROM pedidos WHERE id = $1', [id]);
     if (existe.length === 0) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
     await db.query(
-      `INSERT INTO pedido_archivos (pedido_id, nombre, mime, tamano, datos) VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (pedido_id) DO UPDATE SET nombre = EXCLUDED.nombre, mime = EXCLUDED.mime,
+      `INSERT INTO pedido_archivos (pedido_id, tipo, nombre, mime, tamano, datos) VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (pedido_id, tipo) DO UPDATE SET nombre = EXCLUDED.nombre, mime = EXCLUDED.mime,
          tamano = EXCLUDED.tamano, datos = EXCLUDED.datos, subido_en = now()`,
-      [id, String(nombre).slice(0, 200), mime, datos.length, datos]
+      [id, tipo, String(nombre).slice(0, 200), mime, datos.length, datos]
     );
     const pedido = await cargarPedidoCompleto(id);
     res.json({ ok: true, pedido });
   } catch (error) {
-    console.error('Error en PUT /contrato:', error);
-    res.status(500).json({ ok: false, mensaje: 'Error al guardar el archivo del contrato' });
+    console.error('Error al subir archivo (' + tipo + '):', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al guardar el archivo' });
   }
-});
+};
 
-router.get('/:id/contrato', async (req, res) => {
+const verArchivo = tipo => async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT nombre, mime, datos FROM pedido_archivos WHERE pedido_id = $1', [Number(req.params.id)]);
-    if (rows.length === 0) return res.status(404).json({ ok: false, mensaje: 'Este contrato no tiene archivo' });
+    const { rows } = await db.query('SELECT nombre, mime, datos FROM pedido_archivos WHERE pedido_id = $1 AND tipo = $2', [Number(req.params.id), tipo]);
+    if (rows.length === 0) return res.status(404).json({ ok: false, mensaje: 'No hay archivo' });
     res.setHeader('Content-Type', rows[0].mime);
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(rows[0].nombre)}`);
     res.send(rows[0].datos);
   } catch (error) {
-    console.error('Error en GET /contrato:', error);
-    res.status(500).json({ ok: false, mensaje: 'Error al leer el archivo del contrato' });
+    console.error('Error al leer archivo (' + tipo + '):', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al leer el archivo' });
   }
-});
+};
+
+router.put('/:id/contrato', subirArchivo('contrato'));
+router.get('/:id/contrato', verArchivo('contrato'));
+router.put('/:id/documento-entrega', subirArchivo('entrega'));
+router.get('/:id/documento-entrega', verArchivo('entrega'));
 
 // ---------- Editar datos generales del pedido (paso 1, editable siempre) ----------
 

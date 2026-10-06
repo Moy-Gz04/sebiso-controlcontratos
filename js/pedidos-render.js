@@ -359,7 +359,27 @@ function renderCuerpoPedido(p) {
         </label>`}
     </div>`;
 
-  return recorrido + archivo + detalle + oficiosHtml + acciones;
+  const docEntrega = !p.fechaEntrega ? '' : `
+    <div class="bloque-archivo">
+      <div class="subseccion-titulo">Documento de entrega</div>
+      ${p.documentoEntrega ? `
+        <div class="archivo-fila">
+          <span class="archivo-icono"><i class="ti ${/pdf/.test(p.documentoEntrega.mime) ? 'ti-file-type-pdf' : /image/.test(p.documentoEntrega.mime) ? 'ti-photo' : 'ti-file-type-doc'}"></i></span>
+          <span class="archivo-info"><b>${escaparHtml(p.documentoEntrega.nombre)}</b><small>${tamano(p.documentoEntrega.tamano)}</small></span>
+          <button type="button" class="btn btn-secundario btn-sm" data-ver-entrega="${p.id}"><i class="ti ti-eye"></i> Ver documento</button>
+          <label class="btn btn-texto btn-sm btn-reemplazar"><i class="ti ti-replace"></i> Reemplazar
+            <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-entrega="${p.id}" hidden>
+          </label>
+        </div>` : `
+        <label class="zona-archivo zona-archivo--detalle">
+          <i class="ti ti-file-upload"></i>
+          <span class="zona-archivo__texto">Adjuntar documento de entrega (opcional)</span>
+          <small>PDF, Word o imagen · máximo 30 MB</small>
+          <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-entrega="${p.id}">
+        </label>`}
+    </div>`;
+
+  return recorrido + archivo + docEntrega + detalle + oficiosHtml + acciones;
 }
 
 // ---------- Panel del paso que sigue ----------
@@ -387,6 +407,12 @@ function renderPanelAccionPedido(p, idxActual) {
         <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="entrega">
           <label>Fecha de entrega
             <input type="date" name="fechaEntrega" value="${hoy}" required>
+          </label>
+          <label class="zona-archivo zona-archivo--opcional">
+            <i class="ti ti-file-upload"></i>
+            <span class="zona-archivo__texto" data-nombre-archivo>Adjuntar documento de entrega (opcional)</span>
+            <small>Acta, remisión, evidencia… PDF, Word o imagen · máximo 30 MB</small>
+            <input type="file" name="documentoEntrega" accept=".pdf,.doc,.docx,image/*">
           </label>
           <button type="submit" class="btn btn-primario btn-sm">Registrar entrega <i class="ti ti-arrow-right"></i></button>
         </form>
