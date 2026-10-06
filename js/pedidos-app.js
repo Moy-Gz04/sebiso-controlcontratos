@@ -40,6 +40,8 @@ function adjuntarEventosPedidos() {
       form.areaSolicitante.value = p.areaSolicitante || '';
       form.descripcion.value = p.descripcion || '';
       form.montoEstimado.value = p.montoEstimado || '';
+      formatearMontoInput(form.montoEstimado);
+      formatearMontoInput(form.cantidad);
       form.fechaSolicitud.value = p.fechaSolicitud;
       abrirModal('modal-editar-pedido');
     });
@@ -78,7 +80,7 @@ function adjuntarEventosPedidos() {
   contenedor.querySelectorAll('input[name="montoEjercido"]').forEach(input => {
     const salida = input.closest('form').querySelector('[data-calculo-reduccion]');
     const calcular = () => {
-      const aut = Number(input.dataset.autorizado), ej = Number(input.value);
+      const aut = Number(input.dataset.autorizado), ej = numMonto(input.value);
       if (!input.value || isNaN(ej)) { salida.textContent = ''; return; }
       if (ej > aut) { salida.textContent = 'No puede ser mayor al autorizado (' + fmtMoneda.format(aut) + ').'; salida.classList.add('error'); return; }
       const fac = Number(input.dataset.facturado || 0);
