@@ -24,8 +24,8 @@ const { driveConfigurado, subirADrive, enviarDesdeDrive, papeleraDrive } = requi
 router.use(requiereAutenticacion);
 
 const ORDEN_ESTATUS = [
-  'pedido_creado', 'oficio_autorizado', 'contrarecibo', 'adecuacion',
-  'factura_recibida', 'reduccion', 'entregado',
+  'pedido_creado', 'oficio_autorizado', 'adecuacion',
+  'factura_recibida', 'reduccion',
   'en_contabilidad', 'en_pago', 'pagado'
 ];
 
@@ -35,18 +35,24 @@ function oficioAJson(row) {
 
 const archivoAJson = a => a ? { nombre: a.nombre, mime: a.mime, tamano: a.tamano, subidoEn: a.subido_en } : null;
 
-// Cada factura sigue su propio camino: registrada → contabilidad → en pago → pagada
+// 0 contrarrecibo · 1 facturado · 2 entregado · 3 contabilidad · 4 en pago · 5 pagado
+function etapaCR(f) { return f.fecha_pagado ? 5 : f.fecha_inicio_pago ? 4 : f.fecha_contabilidad ? 3 : f.entrega_fecha ? 2 : f.no_factura ? 1 : 0; }
+
+// Cada contrarrecibo sigue su camino: contrarrecibo → factura → entrega → contabilidad → pago → pagado
+const ESTADOS_CR = ['contrarecibo', 'facturado', 'entregado', 'en_contabilidad', 'en_pago', 'pagada'];
 function facturaAJson(f, archivos) {
-  const estado = f.fecha_pagado ? 'pagada' : f.fecha_inicio_pago ? 'en_pago' : f.fecha_contabilidad ? 'en_contabilidad' : 'registrada';
+  const doc = t => archivoAJson(archivos.find(a => a.tipo === t + '-' + f.id));
   return {
-    id: f.id, noFactura: f.no_factura, fecha: f.fecha, descripcion: f.descripcion, monto: Number(f.monto),
-    fechaContabilidad: f.fecha_contabilidad, fechaInicioPago: f.fecha_inicio_pago, fechaPagado: f.fecha_pagado, estado,
-    procesoPago: f.fecha_inicio_pago ? { fecha: f.fecha_inicio_pago, monto: f.proc_pago_monto !== null ? Number(f.proc_pago_monto) : null,
-      documento: archivoAJson(archivos.find(a => a.tipo === 'procpago-' + f.id)) } : null,
-    oficioContabilidad: f.contab_oficio ? { noOficio: f.contab_oficio, fecha: f.fecha_contabilidad, monto: Number(f.contab_monto),
-      documento: archivoAJson(archivos.find(a => a.tipo === 'contab-' + f.id)) } : null,
-    documento: archivoAJson(archivos.find(a => a.tipo === 'factura-' + f.id)),
-    comprobante: archivoAJson(archivos.find(a => a.tipo === 'pago-' + f.id))
+    id: f.id, estado: ESTADOS_CR[etapaCR(f)],
+    contrarecibo: { noContrarecibo: f.cr_no, fecha: f.cr_fecha, cuentaPorPagar: f.cr_cuenta, monto: f.cr_monto !== null ? Number(f.cr_monto) : null, documento: doc('contrarecibo') },
+    factura: f.no_factura ? { noFactura: f.no_factura, fecha: f.fecha, descripcion: f.descripcion, monto: Number(f.monto), documento: doc('factura') } : null,
+    entrega: f.entrega_fecha ? { fecha: f.entrega_fecha, documento: doc('entrega') } : null,
+    oficioContabilidad: f.fecha_contabilidad ? { noOficio: f.contab_oficio, fecha: f.fecha_contabilidad, monto: f.contab_monto !== null ? Number(f.contab_monto) : null, documento: doc('contab') } : null,
+    procesoPago: f.fecha_inicio_pago ? { fecha: f.fecha_inicio_pago, monto: f.proc_pago_monto !== null ? Number(f.proc_pago_monto) : null, documento: doc('procpago') } : null,
+    pago: f.fecha_pagado ? { fecha: f.fecha_pagado, documento: doc('pago') } : null,
+    // compatibilidad
+    noFactura: f.no_factura, monto: f.monto !== null ? Number(f.monto) : null, fecha: f.fecha, descripcion: f.descripcion,
+    fechaContabilidad: f.fecha_contabilidad, fechaInicioPago: f.fecha_inicio_pago, fechaPagado: f.fecha_pagado
   };
 }
 
@@ -87,7 +93,7 @@ async function cargarPedidoCompleto(id) {
   if (pedidoRows.length === 0) return null;
   const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios WHERE pedido_id = $1 ORDER BY id', [id]);
   const { rows: archivos } = await db.query('SELECT tipo, nombre, mime, tamano, subido_en FROM pedido_archivos WHERE pedido_id = $1', [id]);
-  const { rows: facturas } = await db.query('SELECT * FROM pedido_facturas WHERE pedido_id = $1 ORDER BY fecha, id', [id]);
+  const { rows: facturas } = await db.query('SELECT * FROM pedido_facturas WHERE pedido_id = $1 ORDER BY id', [id]);
   return pedidoAJson(pedidoRows[0], oficios, archivos, facturas);
 }
 
@@ -109,7 +115,7 @@ router.get('/', async (req, res) => {
     const { rows: pedidos } = await db.query('SELECT * FROM pedidos ORDER BY id DESC');
     const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios ORDER BY id');
     const { rows: archivos } = await db.query('SELECT pedido_id, tipo, nombre, mime, tamano, subido_en FROM pedido_archivos');
-    const { rows: facturas } = await db.query('SELECT * FROM pedido_facturas ORDER BY fecha, id');
+    const { rows: facturas } = await db.query('SELECT * FROM pedido_facturas ORDER BY id');
     const resultado = pedidos.map(p => pedidoAJson(p, oficios.filter(o => o.pedido_id === p.id), archivos.filter(a => a.pedido_id === p.id), facturas.filter(f => f.pedido_id === p.id)));
     res.json({ ok: true, pedidos: resultado });
   } catch (error) {
@@ -157,14 +163,14 @@ function tipoDeRuta(ruta) {
   const m = /^documento-([a-z]+)(?:-(\d+))?$/.exec(String(ruta || ''));
   if (!m) return null;
   if (!m[2]) return PASOS_CON_DOCUMENTO.includes(m[1]) ? m[1] : null;
-  return ['factura', 'pago', 'contab', 'procpago'].includes(m[1]) ? m[1] + '-' + m[2] : null;
+  return ['factura', 'pago', 'contab', 'procpago', 'contrarecibo', 'entrega'].includes(m[1]) ? m[1] + '-' + m[2] : null;
 }
-const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarecibo', adecuacion: 'Oficio adecuacion', reduccion: 'Reduccion', factura: 'Factura', pago: 'Comprobante de pago', contab: 'Oficio contabilidad factura', procpago: 'Proceso de pago factura' };
+const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega contrarrecibo', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarrecibo', adecuacion: 'Oficio adecuacion', reduccion: 'Reduccion', factura: 'Factura', pago: 'Comprobante de pago', contab: 'Oficio contabilidad factura', procpago: 'Proceso de pago' };
 const etiquetaArchivo = tipo => { const [t, n] = tipo.split('-'); return (ETIQUETA_ARCHIVO[t] || 'Documento') + (n ? ' ' + n : ''); };
 
 // Los documentos de una factura o de su pago solo se aceptan si la factura es del contrato
 async function facturaDelContrato(tipo, id) {
-  const m = /^(factura|pago|contab)-(\d+)$/.exec(tipo);
+  const m = /^(factura|pago|contab|procpago|contrarecibo|entrega)-(\d+)$/.exec(tipo);
   if (!m) return true;
   const { rows } = await db.query('SELECT 1 FROM pedido_facturas WHERE id = $1 AND pedido_id = $2', [Number(m[2]), id]);
   return rows.length > 0;
@@ -271,12 +277,13 @@ const num = v => (v === '' || v === null || v === undefined || isNaN(Number(v)))
 const texto = v => (typeof v === 'string' && v.trim()) ? v.trim() : null;
 const fecha = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
 
-// Monto disponible: lo ejercido tras la reducción o, si no hay, el autorizado vigente
+// Monto disponible para contrarrecibos: el autorizado vigente (ya considera la reducción líquida)
 async function montoDisponible(id, row) {
-  return autorizadoVigente(id, row);   // ya considera la reducción líquida
+  return autorizadoVigente(id, row);
 }
-async function totalFacturado(id, excepto = 0) {
-  const { rows } = await db.query('SELECT COALESCE(SUM(monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2', [id, excepto]);
+// Total comprometido en contrarrecibos del contrato
+async function totalContrarecibos(id, excepto = 0) {
+  const { rows } = await db.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2', [id, excepto]);
   return Number(rows[0].t);
 }
 
@@ -295,19 +302,15 @@ async function autorizadoVigente(id, row) {
   return base + Number(rows[0].ajuste);
 }
 
+// Pasos del contrato (los contrarrecibos tienen su propio camino, más abajo)
 const PASOS = {
   'oficio-autorizacion': {
     de: 'pedido_creado', a: 'oficio_autorizado', nombre: 'el oficio de autorización',
     leer: b => ({ aut_folio: texto(b.noOficio), aut_monto: num(b.monto), aut_fecha: fecha(b.fecha) || new Date().toISOString().slice(0, 10) }),
     validar: d => !d.aut_folio ? 'Falta el No. de oficio' : !(d.aut_monto > 0) ? 'El monto autorizado debe ser mayor a 0' : null
   },
-  'contrarecibo': {
-    de: 'oficio_autorizado', a: 'contrarecibo', nombre: 'el contrarrecibo',
-    leer: b => ({ contrarecibo_no: texto(b.noContrarecibo), contrarecibo_fecha: fecha(b.fecha), contrarecibo_cuenta: texto(b.cuentaPorPagar), contrarecibo_monto: num(b.monto) }),
-    validar: d => !d.contrarecibo_no ? 'Falta el No. de contrarrecibo' : !d.contrarecibo_fecha ? 'Falta la fecha del contrarrecibo' : !d.contrarecibo_cuenta ? 'Falta la cuenta por pagar' : !(d.contrarecibo_monto > 0) ? 'El monto del contrarrecibo debe ser mayor a 0' : null
-  },
   'oficio-adecuacion': {
-    de: 'contrarecibo', a: 'adecuacion', opcional: true, nombre: 'el oficio de adecuación',
+    de: 'oficio_autorizado', a: 'adecuacion', opcional: true, nombre: 'el oficio de adecuación',
     leer: b => ({ oficio_folio: texto(b.folio), oficio_monto: num(b.monto), oficio_fecha: fecha(b.fecha) }),
     validar: d => !d.oficio_folio ? 'Falta el folio del oficio' : !(d.oficio_monto > 0) ? 'El monto debe ser mayor a 0' : !d.oficio_fecha ? 'Falta la fecha del oficio' : null
   },
@@ -318,15 +321,10 @@ const PASOS = {
       if (!(d.reduccion_monto > 0)) return 'Indica cuánto se gastó (mayor a 0)';
       const aut = await autorizadoVigente(id, row);
       if (aut !== null && d.reduccion_monto > aut + 0.005) return 'Lo gastado no puede ser mayor al monto autorizado vigente';
-      const fac = await totalFacturado(id);
-      if (d.reduccion_monto < fac - 0.005) return 'Lo gastado no puede ser menor a lo ya facturado (' + fac.toFixed(2) + ')';
+      const cr = await totalContrarecibos(id);
+      if (d.reduccion_monto < cr - 0.005) return 'Lo gastado no puede ser menor a lo ya registrado en contrarrecibos (' + cr.toFixed(2) + ')';
       return null;
     }
-  },
-  'entrega': {
-    de: 'reduccion', a: 'entregado', opcional: true, nombre: 'la entrega',
-    leer: b => ({ fecha_entrega: fecha(b.fechaEntrega) }),
-    validar: d => !d.fecha_entrega ? 'Falta la fecha de entrega' : null
   },
 };
 
@@ -354,7 +352,7 @@ for (const [ruta, paso] of Object.entries(PASOS)) {
   });
 }
 
-// Omitir un paso opcional (adecuación, reducción o entrega)
+// Omitir un paso opcional (adecuación o reducción)
 router.put('/:id/omitir/:paso', async (req, res) => {
   const id = Number(req.params.id);
   const paso = PASOS[req.params.paso];
@@ -372,43 +370,48 @@ router.put('/:id/omitir/:paso', async (req, res) => {
   }
 });
 
-// ---------- Facturas ----------
-// Se pueden registrar varias, desde el paso de facturación en adelante, hasta
-// cubrir el monto disponible. Cada una avanza sola por contabilidad y pago, sin
-// frenar el resto del contrato. El estatus final del contrato se calcula aquí.
+// ---------- Contrarrecibos ----------
+// Se registran varios (desde el paso de adecuación) hasta cubrir el monto
+// disponible. Cada contrarrecibo sigue su camino sin frenar al resto:
+// contrarrecibo → factura → entrega → contabilidad (oficio) → proceso de pago → pagado.
+// Se guardan en pedido_facturas (una fila por contrarrecibo).
 
-const ETAPA_FACTURA = { registrada: 0, en_contabilidad: 1, en_pago: 2, pagada: 3 };
 
 async function recalcularEstatus(id) {
   const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
   if (!rows.length) return;
   const row = rows[0];
-  if (ORDEN_ESTATUS.indexOf(row.estatus) < ORDEN_ESTATUS.indexOf('entregado')) return;
-  const { rows: fs } = await db.query('SELECT * FROM pedido_facturas WHERE pedido_id=$1', [id]);
-  let nuevo = 'entregado', fechaPagado = null;
-  if (fs.length) {
-    const etapa = f => f.fecha_pagado ? 3 : f.fecha_inicio_pago ? 2 : f.fecha_contabilidad ? 1 : 0;
-    const minima = Math.min(...fs.map(etapa));
+  // Antes de terminar (u omitir) la reducción, el contrato sigue en "contrarrecibos"
+  if (ORDEN_ESTATUS.indexOf(row.estatus) < ORDEN_ESTATUS.indexOf('reduccion')) return;
+  const { rows: crs } = await db.query('SELECT * FROM pedido_facturas WHERE pedido_id=$1', [id]);
+  let nuevo = 'reduccion', fechaPagado = null;
+  if (crs.length) {
+    const minima = Math.min(...crs.map(etapaCR));
     const disp = await montoDisponible(id, row);
-    const facturado = fs.reduce((t, f) => t + Number(f.monto), 0);
-    const completo = disp !== null && facturado >= disp - 0.005;
-    if (minima === 3 && completo) { nuevo = 'pagado'; fechaPagado = fs.map(f => f.fecha_pagado).sort().pop(); }
-    else if (minima >= 2) nuevo = 'en_pago';
-    else if (minima >= 1) nuevo = 'en_contabilidad';
+    // Concluido solo si lo facturado (y pagado) cubre el monto disponible
+    const total = crs.reduce((t, f) => t + Number(f.monto || 0), 0);
+    const completo = disp !== null && total >= disp - 0.005;
+    if (minima === 5 && completo) { nuevo = 'pagado'; fechaPagado = crs.map(f => f.fecha_pagado).sort().pop(); }
+    else if (minima >= 4) nuevo = 'en_pago';
+    else if (minima >= 3) nuevo = 'en_contabilidad';
   }
   if (nuevo !== row.estatus || (nuevo === 'pagado' && String(row.fecha_pagado) !== String(fechaPagado))) {
     await db.query('UPDATE pedidos SET estatus=$1, fecha_pagado=$2, actualizado_en=now() WHERE id=$3', [nuevo, fechaPagado, id]);
   }
 }
 
+function leerContrarecibo(b) {
+  const d = { no: texto(b.noContrarecibo), fecha: fecha(b.fecha), cuenta: texto(b.cuentaPorPagar), monto: num(b.monto) };
+  const error = !d.no ? 'Falta el No. de contrarrecibo' : !d.fecha ? 'Falta la fecha del contrarrecibo'
+    : !d.cuenta ? 'Falta la cuenta por pagar' : !(d.monto > 0) ? 'El monto del contrarrecibo debe ser mayor a 0' : null;
+  return { d, error };
+}
+
+// Nuevo contrarrecibo
 router.post('/:id/facturas', async (req, res) => {
   const id = Number(req.params.id);
-  const b = req.body || {};
-  const d = { no: texto(b.noFactura), fecha: fecha(b.fecha), descripcion: texto(b.descripcion), monto: num(b.monto) };
-  if (!d.no) return res.status(400).json({ ok: false, mensaje: 'Falta el No. de factura' });
-  if (!d.fecha) return res.status(400).json({ ok: false, mensaje: 'Falta la fecha de la factura' });
-  if (!d.descripcion) return res.status(400).json({ ok: false, mensaje: 'Falta la descripción de la factura' });
-  if (!(d.monto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto de la factura debe ser mayor a 0' });
+  const { d, error } = leerContrarecibo(req.body || {});
+  if (error) return res.status(400).json({ ok: false, mensaje: error });
   try {
     const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
     if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
@@ -417,67 +420,101 @@ router.post('/:id/facturas', async (req, res) => {
       return res.status(409).json({ ok: false, mensaje: 'Primero registra (u omite) el oficio de adecuación.' });
     }
     const disp = await montoDisponible(id, row);
-    const fac = await totalFacturado(id);
-    if (disp !== null && fac + d.monto > disp + 0.005) {
-      return res.status(400).json({ ok: false, mensaje: 'Con esta factura se pasaría del monto disponible. Por facturar: $' + Math.max(0, disp - fac).toFixed(2) });
+    const tot = await totalContrarecibos(id);
+    if (disp !== null && tot + d.monto > disp + 0.005) {
+      return res.status(400).json({ ok: false, mensaje: 'Con este contrarrecibo se pasaría del monto disponible. Por registrar: $' + Math.max(0, disp - tot).toFixed(2) });
     }
-    const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND lower(no_factura)=lower($2)', [id, d.no]);
-    if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay una factura con ese número en este contrato' });
-    const { rows: nueva } = await db.query(
-      'INSERT INTO pedido_facturas (pedido_id, no_factura, fecha, descripcion, monto) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [id, d.no, d.fecha, d.descripcion, d.monto]);
+    const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND lower(cr_no)=lower($2)', [id, d.no]);
+    if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay un contrarrecibo con ese número en este contrato' });
+    const { rows: nuevo } = await db.query(
+      'INSERT INTO pedido_facturas (pedido_id, cr_no, cr_fecha, cr_cuenta, cr_monto) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [id, d.no, d.fecha, d.cuenta, d.monto]);
     if (row.estatus === 'adecuacion') await db.query(`UPDATE pedidos SET estatus='factura_recibida', actualizado_en=now() WHERE id=$1`, [id]);
     await recalcularEstatus(id);
-    res.status(201).json({ ok: true, facturaId: nueva[0].id, pedido: await cargarPedidoCompleto(id) });
+    res.status(201).json({ ok: true, facturaId: nuevo[0].id, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {
-    console.error('Error en POST /facturas:', error);
-    res.status(500).json({ ok: false, mensaje: 'Error al registrar la factura' });
+    console.error('Error en POST contrarrecibo:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al registrar el contrarrecibo' });
   }
 });
 
-// Avance de una factura: contabilidad → inicio de pago → pagada (en orden)
+// Corregir los datos de un contrarrecibo
+router.put('/:id/facturas/:fid/contrarecibo', async (req, res) => {
+  const id = Number(req.params.id), fid = Number(req.params.fid);
+  const { d, error } = leerContrarecibo(req.body || {});
+  if (error) return res.status(400).json({ ok: false, mensaje: error });
+  try {
+    const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
+    const { rows: cr } = await db.query('SELECT 1 FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
+    if (!cr.length) return res.status(404).json({ ok: false, mensaje: 'Contrarrecibo no encontrado' });
+    const disp = await montoDisponible(id, rows[0]);
+    const tot = await totalContrarecibos(id, fid);
+    if (disp !== null && tot + d.monto > disp + 0.005) {
+      return res.status(400).json({ ok: false, mensaje: 'Se pasaría del monto disponible. Máximo para este contrarrecibo: $' + Math.max(0, disp - tot).toFixed(2) });
+    }
+    const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2 AND lower(cr_no)=lower($3)', [id, fid, d.no]);
+    if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay otro contrarrecibo con ese número' });
+    await db.query('UPDATE pedido_facturas SET cr_no=$1, cr_fecha=$2, cr_cuenta=$3, cr_monto=$4 WHERE id=$5', [d.no, d.fecha, d.cuenta, d.monto, fid]);
+    await recalcularEstatus(id);
+    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    console.error('Error en PUT contrarrecibo:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al guardar el contrarrecibo' });
+  }
+});
+
+// Avance de un contrarrecibo (en orden): factura → entrega → contabilidad → inicio de pago → pagado
 const AVANCE_FACTURA = {
-  'contabilidad': { columna: 'fecha_contabilidad', antes: null, nombre: 'el paso a contabilidad' },
+  'factura':      { columna: 'no_factura', antes: null, nombre: 'la factura' },
+  'entrega':      { columna: 'entrega_fecha', antes: 'no_factura', nombre: 'la entrega' },
+  'contabilidad': { columna: 'fecha_contabilidad', antes: 'entrega_fecha', nombre: 'el paso a contabilidad' },
   'inicio-pago':  { columna: 'fecha_inicio_pago', antes: 'fecha_contabilidad', nombre: 'el inicio del pago' },
   'pagado':       { columna: 'fecha_pagado', antes: 'fecha_inicio_pago', nombre: 'el pago' }
 };
 router.put('/:id/facturas/:fid/:avance', async (req, res, next) => {
   const id = Number(req.params.id), fid = Number(req.params.fid);
   const av = AVANCE_FACTURA[req.params.avance];
-  if (!av) return next();   // otras rutas de la factura (p. ej. oficio-contabilidad)
+  if (!av) return next();   // otras rutas (p. ej. oficio-contabilidad, contrarecibo)
   const b = req.body || {};
   const f = fecha(b.fecha);
   if (!f) return res.status(400).json({ ok: false, mensaje: 'Falta la fecha' });
-  // Turnar a contabilidad se hace con un oficio: número, fecha (la del oficio) y monto
-  const esContab = req.params.avance === 'contabilidad';
-  const oficioNo = texto(b.noOficio), oficioMonto = num(b.monto);
-  if (esContab && !oficioNo) return res.status(400).json({ ok: false, mensaje: 'Falta el No. de oficio para contabilidad' });
-  if (esContab && !(oficioMonto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto del oficio debe ser mayor a 0' });
-  // Iniciar el proceso de pago también registra un monto (y su documento)
-  const esInicioPago = req.params.avance === 'inicio-pago';
-  if (esInicioPago && !(oficioMonto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto del proceso de pago debe ser mayor a 0' });
+  const tipo = req.params.avance;
+  const no = texto(b.noOficio), monto = num(b.monto);
+  // Validaciones propias de cada avance
+  if (tipo === 'factura') {
+    if (!texto(b.noFactura)) return res.status(400).json({ ok: false, mensaje: 'Falta el No. de factura' });
+    if (!texto(b.descripcion)) return res.status(400).json({ ok: false, mensaje: 'Falta la descripción de la factura' });
+    if (!(monto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto de la factura debe ser mayor a 0' });
+  }
+  if (tipo === 'contabilidad' && !no) return res.status(400).json({ ok: false, mensaje: 'Falta el No. de oficio para contabilidad' });
+  if ((tipo === 'contabilidad' || tipo === 'inicio-pago') && !(monto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto debe ser mayor a 0' });
   try {
     const { rows } = await db.query('SELECT * FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
-    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
-    const fac = rows[0];
-    if (fac[av.columna]) return res.status(409).json({ ok: false, mensaje: 'Esta factura ya tiene registrado ' + av.nombre + '. Recarga la página.' });
-    if (av.antes && !fac[av.antes]) return res.status(409).json({ ok: false, mensaje: 'Esta factura aún no está en el paso previo.' });
-    if (esContab) {
-      await db.query('UPDATE pedido_facturas SET fecha_contabilidad=$1, contab_oficio=$2, contab_monto=$3 WHERE id=$4', [f, oficioNo, oficioMonto, fid]);
-    } else if (esInicioPago) {
-      await db.query('UPDATE pedido_facturas SET fecha_inicio_pago=$1, proc_pago_monto=$2 WHERE id=$3', [f, oficioMonto, fid]);
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrarrecibo no encontrado' });
+    const cr = rows[0];
+    if (cr[av.columna]) return res.status(409).json({ ok: false, mensaje: 'Este contrarrecibo ya tiene registrado ' + av.nombre + '. Recarga la página.' });
+    if (av.antes && !cr[av.antes]) return res.status(409).json({ ok: false, mensaje: 'Este contrarrecibo aún no está en el paso previo.' });
+    if (tipo === 'factura') {
+      const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2 AND lower(no_factura)=lower($3)', [id, fid, texto(b.noFactura)]);
+      if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay una factura con ese número en este contrato' });
+      await db.query('UPDATE pedido_facturas SET no_factura=$1, fecha=$2, descripcion=$3, monto=$4 WHERE id=$5', [texto(b.noFactura), f, texto(b.descripcion), monto, fid]);
+    } else if (tipo === 'contabilidad') {
+      await db.query('UPDATE pedido_facturas SET fecha_contabilidad=$1, contab_oficio=$2, contab_monto=$3 WHERE id=$4', [f, no, monto, fid]);
+    } else if (tipo === 'inicio-pago') {
+      await db.query('UPDATE pedido_facturas SET fecha_inicio_pago=$1, proc_pago_monto=$2 WHERE id=$3', [f, monto, fid]);
     } else {
       await db.query(`UPDATE pedido_facturas SET ${av.columna}=$1 WHERE id=$2`, [f, fid]);
     }
     await recalcularEstatus(id);
     res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {
-    console.error('Error en PUT /facturas avance:', error);
+    console.error('Error en PUT contrarrecibo avance:', error);
     res.status(500).json({ ok: false, mensaje: 'Error al registrar ' + av.nombre });
   }
 });
 
-// Completar o corregir el oficio de contabilidad de una factura que ya se turnó
+// Completar o corregir el oficio de contabilidad de un contrarrecibo ya turnado
 router.put('/:id/facturas/:fid/oficio-contabilidad', async (req, res) => {
   const id = Number(req.params.id), fid = Number(req.params.fid);
   const b = req.body || {};
@@ -487,8 +524,8 @@ router.put('/:id/facturas/:fid/oficio-contabilidad', async (req, res) => {
   if (!(monto > 0)) return res.status(400).json({ ok: false, mensaje: 'El monto del oficio debe ser mayor a 0' });
   try {
     const { rows } = await db.query('SELECT fecha_contabilidad FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
-    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
-    if (!rows[0].fecha_contabilidad) return res.status(409).json({ ok: false, mensaje: 'Esta factura todavía no se turna a contabilidad.' });
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrarrecibo no encontrado' });
+    if (!rows[0].fecha_contabilidad) return res.status(409).json({ ok: false, mensaje: 'Este contrarrecibo todavía no se turna a contabilidad.' });
     await db.query('UPDATE pedido_facturas SET contab_oficio=$1, fecha_contabilidad=$2, contab_monto=$3 WHERE id=$4', [no, f, monto, fid]);
     res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {
@@ -497,15 +534,17 @@ router.put('/:id/facturas/:fid/oficio-contabilidad', async (req, res) => {
   }
 });
 
-// Eliminar una factura capturada por error (no si ya está pagada)
+// Eliminar un contrarrecibo capturado por error (no si ya está pagado)
+const DOCS_CR = ['contrarecibo', 'factura', 'entrega', 'contab', 'procpago', 'pago'];
 router.delete('/:id/facturas/:fid', async (req, res) => {
   const id = Number(req.params.id), fid = Number(req.params.fid);
   try {
     const { rows } = await db.query('SELECT fecha_pagado FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
-    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
-    if (rows[0].fecha_pagado) return res.status(409).json({ ok: false, mensaje: 'No se puede eliminar una factura pagada' });
-    const { rows: arch } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4,$5) AND drive_id IS NOT NULL', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid, 'procpago-' + fid]);
-    await db.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo IN ($2,$3,$4,$5)', [id, 'factura-' + fid, 'pago-' + fid, 'contab-' + fid, 'procpago-' + fid]);
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrarrecibo no encontrado' });
+    if (rows[0].fecha_pagado) return res.status(409).json({ ok: false, mensaje: 'No se puede eliminar un contrarrecibo pagado' });
+    const tipos = DOCS_CR.map(t => t + '-' + fid);
+    const { rows: arch } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo = ANY($2) AND drive_id IS NOT NULL', [id, tipos]);
+    await db.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo = ANY($2)', [id, tipos]);
     await db.query('DELETE FROM pedido_facturas WHERE id=$1', [fid]);
     arch.forEach(a => papeleraDrive(a.drive_id));
     const { rows: quedan } = await db.query('SELECT count(*)::int n FROM pedido_facturas WHERE pedido_id=$1', [id]);
@@ -513,8 +552,8 @@ router.delete('/:id/facturas/:fid', async (req, res) => {
     await recalcularEstatus(id);
     res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {
-    console.error('Error en DELETE /facturas:', error);
-    res.status(500).json({ ok: false, mensaje: 'Error al eliminar la factura' });
+    console.error('Error en DELETE contrarrecibo:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al eliminar el contrarrecibo' });
   }
 });
 

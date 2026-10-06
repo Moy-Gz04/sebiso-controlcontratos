@@ -5,8 +5,8 @@
 // =========================================================
 
 const ORDEN_PASOS_PEDIDO = [
-  'pedido_creado', 'oficio_autorizado', 'contrarecibo', 'adecuacion',
-  'factura_recibida', 'reduccion', 'entregado',
+  'pedido_creado', 'oficio_autorizado', 'adecuacion',
+  'factura_recibida', 'reduccion',
   'en_contabilidad', 'en_pago', 'pagado'
 ];
 
@@ -26,31 +26,34 @@ function calcularMontoDisponiblePedido(pedido, ignorarReduccion = false) {
   return base + ajustes;
 }
 
-// Las cantidades del contrato en cada etapa (todas a la mano)
+// Las cantidades del contrato en cada etapa (todas a la mano).
+// Cada contrarrecibo ampara una parte del autorizado; su factura, entrega,
+// contabilidad y pago se siguen por separado.
 function montosDelContrato(p) {
   const autorizado = calcularMontoDisponiblePedido(p);
-  const facturas = p.facturas || [];
-  const facturado = facturas.reduce((t, f) => t + Number(f.monto), 0);
-  const pagado = facturas.filter(f => f.estado === 'pagada').reduce((t, f) => t + Number(f.monto), 0);
+  const crs = p.facturas || [];
+  const suma = (lista, fn) => Math.round(lista.reduce((t, f) => t + Number(fn(f) || 0), 0) * 100) / 100;
+  const contrarecibos = suma(crs, f => f.contrarecibo && f.contrarecibo.monto);
+  const conFactura = crs.filter(f => f.factura);
+  const facturado = suma(conFactura, f => f.factura.monto);
+  const pagado = suma(crs.filter(f => f.estado === 'pagada' && f.factura), f => f.factura.monto);
   const ejercido = p.reduccion ? p.reduccion.montoEjercido : null;
-  // Autorizado que había antes de la reducción líquida (solo como referencia)
   const autorizadoPrevio = p.reduccion ? calcularMontoDisponiblePedido(p, true) : null;
-  // Lo que se puede facturar: el autorizado vigente (ya actualizado por la reducción si la hay)
   const disponible = autorizado;
   return {
     contratado: Number(p.montoEstimado || 0),
     autorizado,
-    contrarecibo: p.contrarecibo ? p.contrarecibo.monto : null,
+    contrarecibos,
+    numContrarecibos: crs.length,
     facturado,
+    numFacturas: conFactura.length,
     pagado,
-    numFacturas: facturas.length,
     disponible,
-    porFacturar: disponible !== null ? Math.max(0, Math.round((disponible - facturado) * 100) / 100) : null,
+    // lo que aún se puede amparar con contrarrecibos nuevos
+    porRegistrar: disponible !== null ? Math.max(0, Math.round((disponible - contrarecibos) * 100) / 100) : null,
     ejercido,
     autorizadoPrevio,
-    // cuánto cambió el autorizado con la reducción líquida
     reduccion: ejercido !== null && autorizadoPrevio !== null ? autorizadoPrevio - ejercido : null,
-    // el monto que manda en este momento
     vigente: autorizado !== null ? autorizado : Number(p.montoEstimado || 0)
   };
 }
@@ -115,25 +118,22 @@ const StorePedidos = {
     return datos.pedido;
   },
 
-  // Facturas: varias por contrato, cada una con su seguimiento
-  async agregarFactura(id, cuerpo) {
+  // Contrarrecibos: varios por contrato, cada uno con su factura y seguimiento
+  async agregarContrarecibo(id, cuerpo) {
     return peticion(`/pedidos/${id}/facturas`, { method: 'POST', body: JSON.stringify(cuerpo) });
   },
-  async avanzarFactura(id, fid, avance, fecha, extra = {}) {
-    const datos = await peticion(`/pedidos/${id}/facturas/${fid}/${avance}`, { method: 'PUT', body: JSON.stringify({ fecha, ...extra }) });
+  // Avance de un contrarrecibo (factura, entrega, contabilidad, inicio-pago, pagado)
+  // o corrección (contrarecibo, oficio-contabilidad)
+  async avanzarContrarecibo(id, fid, ruta, cuerpo) {
+    const datos = await peticion(`/pedidos/${id}/facturas/${fid}/${ruta}`, { method: 'PUT', body: JSON.stringify(cuerpo) });
     return datos.pedido;
   },
-  // Completar o corregir el oficio de contabilidad de una factura ya turnada
-  async guardarOficioContabilidad(id, fid, { noOficio, fecha, monto }) {
-    const datos = await peticion(`/pedidos/${id}/facturas/${fid}/oficio-contabilidad`, { method: 'PUT', body: JSON.stringify({ noOficio, fecha, monto }) });
-    return datos.pedido;
-  },
-  async eliminarFactura(id, fid) {
+  async eliminarContrarecibo(id, fid) {
     const datos = await peticion(`/pedidos/${id}/facturas/${fid}`, { method: 'DELETE' });
     return datos.pedido;
   },
 
-  // Omite un paso opcional (oficio-adecuacion, reduccion, entrega)
+  // Omite un paso opcional (oficio-adecuacion, reduccion)
   async omitirPaso(id, ruta) {
     const datos = await peticion(`/pedidos/${id}/omitir/${ruta}`, { method: 'PUT' });
     return datos.pedido;

@@ -84,7 +84,7 @@ function adjuntarEventosPedidos() {
       if (!input.value || isNaN(ej)) { salida.textContent = ''; return; }
       if (ej > aut) { salida.textContent = 'No puede ser mayor al autorizado (' + fmtMoneda.format(aut) + ').'; salida.classList.add('error'); return; }
       const fac = Number(input.dataset.facturado || 0);
-      if (ej < fac) { salida.textContent = 'No puede ser menor a lo ya facturado (' + fmtMoneda.format(fac) + ').'; salida.classList.add('error'); return; }
+      if (ej < fac) { salida.textContent = 'No puede ser menor a lo ya amparado en contrarrecibos (' + fmtMoneda.format(fac) + ').'; salida.classList.add('error'); return; }
       salida.classList.remove('error');
       salida.textContent = 'Reducción: ' + fmtMoneda.format(aut - ej) + ' · el contrato queda en ' + fmtMoneda.format(ej);
     };
@@ -147,14 +147,14 @@ function adjuntarEventosPedidos() {
         if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
         boton.disabled = true;
         let rutaDoc = form.dataset.doc;
-        if (form.dataset.accion === 'factura-nueva') {
-          // Las facturas se agregan a una lista; su documento lleva el número de la factura
-          const r = await StorePedidos.agregarFactura(id, cuerpo);
-          rutaDoc = 'documento-factura-' + r.facturaId;
+        if (form.dataset.accion === 'contrarecibo-nuevo') {
+          // Los contrarrecibos se agregan a una lista; su documento lleva su número interno
+          const r = await StorePedidos.agregarContrarecibo(id, cuerpo);
+          rutaDoc = 'documento-contrarecibo-' + r.facturaId;
         } else {
           await StorePedidos.registrarPaso(id, form.dataset.accion, cuerpo);
         }
-        let aviso = form.dataset.accion === 'factura-nueva' ? 'Factura registrada.' : 'Paso registrado.', error = false;
+        let aviso = form.dataset.accion === 'contrarecibo-nuevo' ? 'Contrarrecibo registrado.' : 'Paso registrado.', error = false;
         if (doc && rutaDoc) {
           try { await StorePedidos.subirDocumento(id, rutaDoc, doc); aviso = aviso.replace('.', ' con su documento.'); }
           catch (err) { aviso = 'Paso registrado, pero el documento no se subió: ' + err.message + ' Súbelo desde el detalle.'; error = true; }
@@ -184,55 +184,48 @@ function adjuntarEventosPedidos() {
     });
   });
 
-  // Avance de cada factura (contabilidad → inicio de pago → pagada)
-  contenedor.querySelectorAll('.form-avance-factura').forEach(form => {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = Number(form.dataset.pedidoId);
-      const boton = form.querySelector('button');
-      try {
-        boton.disabled = true;
-        await StorePedidos.avanzarFactura(id, Number(form.dataset.fid), form.dataset.avance, form.fecha.value);
-        tarjetasPedidoExpandidas.add(id);
-        await renderListadoPedidos();
-        mostrarAviso('Factura actualizada.');
-      } catch (err) { boton.disabled = false; mostrarAviso(err.message, true); }
-    });
-  });
-
-  // Abrir / cerrar el panel del oficio de contabilidad de una factura
-  contenedor.querySelectorAll('[data-abrir-oficio]').forEach(btn => {
+  // Abrir / cerrar el formulario de un avance de contrarrecibo
+  contenedor.querySelectorAll('[data-abrir-cr]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const panel = document.getElementById('oficio-contab-' + btn.dataset.abrirOficio);
+      const panel = document.getElementById(btn.dataset.abrirCr);
       if (!panel) return;
+      contenedor.querySelectorAll('.fi-oficio').forEach(o => { if (o !== panel) o.hidden = true; });
       panel.hidden = !panel.hidden;
-      if (!panel.hidden) panel.querySelector('input[name="noOficio"]').focus();
+      if (!panel.hidden) { const c = panel.querySelector('input:not([type="hidden"]):not([type="file"])'); if (c) c.focus(); }
     });
   });
-  contenedor.querySelectorAll('.form-oficio-contab input[name="documento"]').forEach(input => {
+  contenedor.querySelectorAll('.form-avance-cr input[name="documento"]').forEach(input => {
     input.addEventListener('change', () => {
       const et = input.closest('.zona-archivo').querySelector('[data-nombre-archivo]');
       et.textContent = input.files[0] ? input.files[0].name : et.dataset.textoOriginal;
     });
   });
 
-  // Turnar a contabilidad con su oficio (o completar el oficio de una ya turnada)
-  contenedor.querySelectorAll('.form-oficio-contab').forEach(form => {
+  // Avance de cada contrarrecibo: factura, entrega, contabilidad, proceso de pago, pagado
+  // (y corrección del contrarrecibo o del oficio de contabilidad). Si trae documento, se sube después.
+  const AVISO_CR = {
+    factura: 'Factura registrada', entrega: 'Entrega registrada', contabilidad: 'Turnado a contabilidad',
+    'inicio-pago': 'Proceso de pago iniciado', pagado: 'Pago registrado',
+    contrarecibo: 'Contrarrecibo actualizado', 'oficio-contabilidad': 'Oficio de contabilidad guardado'
+  };
+  contenedor.querySelectorAll('.form-avance-cr').forEach(form => {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const id = Number(form.dataset.pedidoId), fid = Number(form.dataset.fid);
+      const id = Number(form.dataset.pedidoId), fid = Number(form.dataset.fid), ruta = form.dataset.ruta;
       const boton = form.querySelector('button[type="submit"]');
-      const datos = { noOficio: form.noOficio.value.trim(), fecha: form.fecha.value, monto: form.monto.value };
-      const doc = form.documento.files[0];
+      const cuerpo = {};
+      form.querySelectorAll('input[name], select[name], textarea[name]').forEach(el => {
+        if (el.type !== 'file') cuerpo[el.name] = el.value.trim();
+      });
+      const doc = form.documento && form.documento.files[0];
       try {
-        if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
+        if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error('El documento pesa más de ' + MAX_CONTRATO_MB + ' MB.');
         boton.disabled = true;
-        if (form.dataset.modo === 'turnar') await StorePedidos.avanzarFactura(id, fid, 'contabilidad', datos.fecha, datos);
-        else await StorePedidos.guardarOficioContabilidad(id, fid, datos);
-        let aviso = form.dataset.modo === 'turnar' ? 'Factura turnada a contabilidad.' : 'Oficio de contabilidad guardado.', error = false;
-        if (doc) {
-          try { await StorePedidos.subirDocumento(id, 'documento-contab-' + fid, doc); aviso = aviso.replace('.', ' con su oficio adjunto.'); }
-          catch (err) { aviso = 'Se registró, pero el oficio no se subió: ' + err.message + ' Súbelo desde la factura.'; error = true; }
+        await StorePedidos.avanzarContrarecibo(id, fid, ruta, cuerpo);
+        let aviso = (AVISO_CR[ruta] || 'Contrarrecibo actualizado') + '.', error = false;
+        if (doc && form.dataset.doc) {
+          try { await StorePedidos.subirDocumento(id, form.dataset.doc + '-' + fid, doc); aviso = aviso.replace('.', ' con su documento.'); }
+          catch (err) { aviso = 'Se registró, pero el documento no se subió: ' + err.message + ' Súbelo desde el contrarrecibo.'; error = true; }
         }
         tarjetasPedidoExpandidas.add(id);
         await renderListadoPedidos();
@@ -241,56 +234,21 @@ function adjuntarEventosPedidos() {
     });
   });
 
-  // Proceso de pago: abrir panel y registrar fecha, monto y documento
-  contenedor.querySelectorAll('[data-abrir-pago]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const panel = document.getElementById('proc-pago-' + btn.dataset.abrirPago);
-      if (panel) panel.hidden = !panel.hidden;
-    });
-  });
-  contenedor.querySelectorAll('.form-proc-pago input[name="documento"]').forEach(input => {
-    input.addEventListener('change', () => {
-      const et = input.closest('.zona-archivo').querySelector('[data-nombre-archivo]');
-      et.textContent = input.files[0] ? input.files[0].name : et.dataset.textoOriginal;
-    });
-  });
-  contenedor.querySelectorAll('.form-proc-pago').forEach(form => {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = Number(form.dataset.pedidoId), fid = Number(form.dataset.fid);
-      const boton = form.querySelector('button[type="submit"]');
-      const doc = form.documento.files[0];
-      try {
-        if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error("El documento pesa más de " + MAX_CONTRATO_MB + " MB.");
-        boton.disabled = true;
-        await StorePedidos.avanzarFactura(id, fid, 'inicio-pago', form.fecha.value, { monto: form.monto.value });
-        let aviso = 'Proceso de pago iniciado.', error = false;
-        if (doc) {
-          try { await StorePedidos.subirDocumento(id, 'documento-procpago-' + fid, doc); aviso = 'Proceso de pago iniciado con su documento.'; }
-          catch (err) { aviso = 'Se registró, pero el documento no se subió: ' + err.message + ' Súbelo desde la factura.'; error = true; }
-        }
-        tarjetasPedidoExpandidas.add(id);
-        await renderListadoPedidos();
-        mostrarAviso(aviso, error);
-      } catch (err) { boton.disabled = false; mostrarAviso(err.message, true); }
-    });
-  });
-
-  // Eliminar una factura capturada por error
+  // Eliminar un contrarrecibo capturado por error
   contenedor.querySelectorAll('[data-eliminar-factura]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.pedidoId);
       pedirConfirmacion({
-        titulo: 'Eliminar factura',
-        mensaje: '¿Eliminar esta factura y sus documentos? Los montos del contrato se recalculan.',
+        titulo: 'Eliminar contrarrecibo',
+        mensaje: '¿Eliminar este contrarrecibo con su factura y sus documentos? Los montos del contrato se recalculan.',
         textoConfirmar: 'Sí, eliminar',
         peligro: true,
         accion: async () => {
           try {
-            await StorePedidos.eliminarFactura(id, Number(btn.dataset.eliminarFactura));
+            await StorePedidos.eliminarContrarecibo(id, Number(btn.dataset.eliminarFactura));
             tarjetasPedidoExpandidas.add(id);
             await renderListadoPedidos();
-            mostrarAviso('Factura eliminada.');
+            mostrarAviso('Contrarrecibo eliminado.');
           } catch (err) { mostrarAviso(err.message, true); }
         }
       });

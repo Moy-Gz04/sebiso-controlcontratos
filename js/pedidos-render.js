@@ -15,29 +15,25 @@ let ultimaTarjetaAbierta = null; // para animar solo la que se acaba de abrir
 let animarEntrada = true;      // la entrada escalonada solo al cargar o filtrar
 
 const PASOS_PEDIDO = [
-  { clave: 'pedido_creado',     label: 'Contrato',                 corto: 'Contrato',      icono: 'ti-file-plus' },
-  { clave: 'oficio_autorizado', label: 'Oficio de autorización',   corto: 'Autorización',  icono: 'ti-file-certificate' },
-  { clave: 'contrarecibo',      label: 'Contrarrecibo',            corto: 'Contrarrecibo', icono: 'ti-receipt-2' },
-  { clave: 'adecuacion',        label: 'Oficio de adecuación',     corto: 'Adecuación',    icono: 'ti-adjustments-dollar', opcional: true },
-  { clave: 'factura_recibida',  label: 'Facturas',                 corto: 'Facturas',      icono: 'ti-receipt' },
-  { clave: 'reduccion',         label: 'Reducción líquida',                corto: 'Reducción',     icono: 'ti-arrow-down-circle', opcional: true },
-  { clave: 'entregado',         label: 'Entrega',                  corto: 'Entrega',       icono: 'ti-truck-delivery', opcional: true },
-  { clave: 'en_contabilidad',   label: 'Contabilidad',             corto: 'Contabilidad',  icono: 'ti-calculator' },
-  { clave: 'en_pago',           label: 'Proceso de pago',          corto: 'En pago',       icono: 'ti-cash' },
-  { clave: 'pagado',            label: 'Pagado',                   corto: 'Pagado',        icono: 'ti-circle-check' }
+  { clave: 'pedido_creado',     label: 'Contrato',                 corto: 'Contrato',       icono: 'ti-file-plus' },
+  { clave: 'oficio_autorizado', label: 'Oficio de autorización',   corto: 'Autorización',   icono: 'ti-file-certificate' },
+  { clave: 'adecuacion',        label: 'Oficio de adecuación',     corto: 'Adecuación',     icono: 'ti-adjustments-dollar', opcional: true },
+  { clave: 'factura_recibida',  label: 'Contrarrecibos',           corto: 'Contrarrecibos', icono: 'ti-receipt-2' },
+  { clave: 'reduccion',         label: 'Reducción líquida',        corto: 'Reducción',      icono: 'ti-arrow-down-circle', opcional: true },
+  { clave: 'en_contabilidad',   label: 'Contabilidad',             corto: 'Contabilidad',   icono: 'ti-calculator' },
+  { clave: 'en_pago',           label: 'Proceso de pago',          corto: 'En pago',        icono: 'ti-cash' },
+  { clave: 'pagado',            label: 'Pagado',                   corto: 'Pagado',         icono: 'ti-circle-check' }
 ];
 
 // Qué hace falta para avanzar desde cada paso
 const SIGUIENTE_PASO = {
   pedido_creado: 'Registrar el oficio de autorización',
-  oficio_autorizado: 'Registrar el contrarrecibo',
-  contrarecibo: 'Oficio de adecuación (opcional)',
-  adecuacion: 'Registrar la primera factura',
+  oficio_autorizado: 'Oficio de adecuación (opcional)',
+  adecuacion: 'Registrar el primer contrarrecibo',
   factura_recibida: 'Reducción líquida (opcional)',
-  reduccion: 'Entrega (opcional)',
-  entregado: 'Seguimiento de facturas en contabilidad',
-  en_contabilidad: 'Seguimiento de pagos de facturas',
-  en_pago: 'Registrar los pagos de las facturas'
+  reduccion: 'Seguimiento de cada contrarrecibo',
+  en_contabilidad: 'Seguimiento de cada contrarrecibo',
+  en_pago: 'Registrar los pagos de los contrarrecibos'
 };
 
 function indicePaso(estatus) {
@@ -49,7 +45,6 @@ function pasoOmitido(p, clave) {
   if (indicePaso(p.estatus) < indicePaso(clave)) return false;
   if (clave === 'adecuacion') return !p.oficio;
   if (clave === 'reduccion') return !p.reduccion;
-  if (clave === 'entregado') return !p.fechaEntrega;
   return false;
 }
 
@@ -57,7 +52,7 @@ function pasoOmitido(p, clave) {
 function grupoEtapa(estatus) {
   const idx = indicePaso(estatus);
   if (idx <= 1) return 'inicio';
-  if (idx <= 8) return 'tramite';
+  if (idx <= 6) return 'tramite';
   return 'pagado';
 }
 
@@ -258,17 +253,20 @@ function renderMontosContrato(p) {
   const ajustes = (p.oficios || []).filter(of => !!of.posteriorReduccion === !!p.reduccion).length;
   const notaAut = p.reduccion ? 'según reducción líquida' : p.oficio ? 'según oficio de adecuación' : (p.autorizacion ? 'según oficio de autorización' : '');
   const avisos = [];
-  if (m.disponible !== null && m.facturado > m.disponible + 0.005) avisos.push('Lo facturado es mayor al monto disponible.');
-  if (m.contrarecibo !== null && m.autorizado !== null && Math.abs(m.contrarecibo - m.autorizado) > 0.005) avisos.push(`El contrarrecibo difiere del autorizado por ${fmtMoneda.format(Math.abs(m.contrarecibo - m.autorizado))}.`);
+  if (m.disponible !== null && m.contrarecibos > m.disponible + 0.005) avisos.push('Los contrarrecibos suman más que el monto disponible.');
+  (p.facturas || []).forEach(f => {
+    if (f.factura && f.contrarecibo && f.contrarecibo.monto !== null && Math.abs(f.factura.monto - f.contrarecibo.monto) > 0.005)
+      avisos.push(`La factura ${escaparHtml(f.factura.noFactura)} (${fmtMoneda.format(f.factura.monto)}) no coincide con su contrarrecibo ${escaparHtml(f.contrarecibo.noContrarecibo)} (${fmtMoneda.format(f.contrarecibo.monto)}).`);
+  });
   return `
     <div class="montos-mini montos-contrato">
       ${fila('Contratado', m.contratado, 'monto del contrato')}
       ${m.autorizadoPrevio !== null ? fila('Autorizado antes de la reducción', m.autorizadoPrevio, 'reemplazado por la reducción líquida', 'previo') : ''}
       ${fila('Autorizado vigente', m.autorizado, notaAut + (ajustes ? ` · ${ajustes} ajuste${ajustes > 1 ? 's' : ''}` : ''))}
-      ${fila('Contrarrecibo', m.contrarecibo)}
-      ${fila('Facturado', m.numFacturas ? m.facturado : null, m.numFacturas ? m.numFacturas + ' factura' + (m.numFacturas > 1 ? 's' : '') : '')}
+      ${fila('Contrarrecibos', m.numContrarecibos ? m.contrarecibos : null, m.numContrarecibos ? m.numContrarecibos + ' contrarrecibo' + (m.numContrarecibos > 1 ? 's' : '') : '')}
+      ${m.numContrarecibos && m.porRegistrar !== null ? fila('Por registrar', m.porRegistrar, m.porRegistrar > 0.005 ? 'aún se pueden registrar contrarrecibos' : 'monto cubierto', m.porRegistrar > 0.005 ? 'pendiente' : 'completo') : ''}
+      ${m.numFacturas ? fila('Facturado', m.facturado, m.numFacturas + ' factura' + (m.numFacturas > 1 ? 's' : '')) : ''}
       ${m.numFacturas ? fila('Pagado', m.pagado) : ''}
-      ${m.porFacturar !== null && m.numFacturas ? fila('Por facturar', m.porFacturar, m.porFacturar > 0.005 ? 'aún se pueden registrar facturas' : 'facturación completa', m.porFacturar > 0.005 ? 'pendiente' : 'completo') : ''}
       ${fila('Monto vigente', m.vigente, '', 'total')}
     </div>
     ${avisos.map(a => `<p class="aviso-monto"><i class="ti ti-alert-triangle"></i>${a}</p>`).join('')}`;
@@ -287,13 +285,13 @@ function renderCuerpoPedido(p) {
         const omitido = pasoOmitido(p, paso.clave);
         // "estatus" es el último paso ya registrado: lo de antes está hecho y el siguiente es el actual
         // Facturas ya iniciadas pero sin cubrir el saldo: en lugar de palomita, alerta roja que parpadea
-        const faltanFacturas = paso.clave === 'factura_recibida' && i <= idxActual && mRec.porFacturar !== null && mRec.porFacturar > 0.005;
+        const faltanFacturas = paso.clave === 'factura_recibida' && i <= idxActual && mRec.porRegistrar !== null && mRec.porRegistrar > 0.005;
         const estado = faltanFacturas ? 'faltan' : omitido ? 'omitido' : i <= idxActual ? 'hecho' : i === idxActual + 1 ? 'actual' : 'pendiente';
         const icono = faltanFacturas ? 'ti-alert-triangle' : omitido ? 'ti-minus' : i <= idxActual ? 'ti-check' : paso.icono;
         return `
-          <li class="rec-paso ${estado}" style="--j:${i}" ${faltanFacturas ? `title="Faltan ${fmtMoneda.format(mRec.porFacturar)} por facturar"` : ''}>
+          <li class="rec-paso ${estado}" style="--j:${i}" ${faltanFacturas ? `title="Faltan ${fmtMoneda.format(mRec.porRegistrar)} por amparar con contrarrecibos"` : ''}>
             <span class="rec-circulo"><i class="ti ${icono}"></i></span>
-            <span class="rec-label">${paso.label}${faltanFacturas ? `<small>faltan facturas</small>` : paso.opcional ? `<small>${omitido ? 'omitido' : 'opcional'}</small>` : ''}</span>
+            <span class="rec-label">${paso.label}${faltanFacturas ? `<small>faltan contrarrecibos</small>` : paso.opcional ? `<small>${omitido ? 'omitido' : 'opcional'}</small>` : ''}</span>
           </li>`;
       }).join('')}
     </ol>
@@ -304,17 +302,20 @@ function renderCuerpoPedido(p) {
   const eventos = [
     { fecha: p.fechaSolicitud, titulo: 'Contrato', detalle: `Monto contratado ${fmtMoneda.format(p.montoEstimado || 0)}` },
     p.autorizacion && { fecha: p.autorizacion.fecha, titulo: 'Oficio de autorización', detalle: `${escaparHtml(p.autorizacion.noOficio)} · ${fmtMoneda.format(p.autorizacion.monto)}`, destacado: true },
-    p.contrarecibo && { fecha: p.contrarecibo.fecha, titulo: 'Contrarrecibo', detalle: `No. ${escaparHtml(p.contrarecibo.noContrarecibo)} · Cuenta por pagar ${escaparHtml(p.contrarecibo.cuentaPorPagar)} · ${fmtMoneda.format(p.contrarecibo.monto)}` },
     p.oficio && { fecha: p.oficio.fecha, titulo: 'Oficio de adecuación', detalle: `${escaparHtml(p.oficio.folio)} · ${fmtMoneda.format(p.oficio.monto)}` },
     ...(p.oficios || []).map(of => ({ fecha: of.fecha, titulo: of.tipo === 'ampliacion' ? 'Ampliación' : 'Cancelación', detalle: `${escaparHtml(of.folio)} · ${of.tipo === 'cancelacion' ? '−' : '+'}${fmtMoneda.format(of.monto)}` })),
-    ...(p.facturas || []).flatMap(f => [
-      { fecha: f.fecha, titulo: 'Factura ' + escaparHtml(f.noFactura), detalle: `${fmtMoneda.format(f.monto)} · ${escaparHtml(f.descripcion || '')}` },
-      f.fechaContabilidad && { fecha: f.fechaContabilidad, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' a contabilidad', detalle: '' },
-      f.fechaInicioPago && { fecha: f.fechaInicioPago, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' en pago', detalle: '' },
-      f.fechaPagado && { fecha: f.fechaPagado, titulo: 'Factura ' + escaparHtml(f.noFactura) + ' pagada', detalle: fmtMoneda.format(f.monto), destacado: true }
-    ]).filter(Boolean),
+    ...(p.facturas || []).flatMap(f => {
+      const cr = 'CR ' + escaparHtml(f.contrarecibo.noContrarecibo || '');
+      return [
+        { fecha: f.contrarecibo.fecha, titulo: 'Contrarrecibo ' + escaparHtml(f.contrarecibo.noContrarecibo || ''), detalle: `Cuenta por pagar ${escaparHtml(f.contrarecibo.cuentaPorPagar || '')} · ${fmtMoneda.format(f.contrarecibo.monto || 0)}` },
+        f.factura && { fecha: f.factura.fecha, titulo: cr + ' · factura ' + escaparHtml(f.factura.noFactura), detalle: `${fmtMoneda.format(f.factura.monto)} · ${escaparHtml(f.factura.descripcion || '')}` },
+        f.entrega && { fecha: f.entrega.fecha, titulo: cr + ' · entrega', detalle: '' },
+        f.oficioContabilidad && { fecha: f.oficioContabilidad.fecha, titulo: cr + ' · a contabilidad', detalle: f.oficioContabilidad.noOficio ? 'Oficio ' + escaparHtml(f.oficioContabilidad.noOficio) : '' },
+        f.procesoPago && { fecha: f.procesoPago.fecha, titulo: cr + ' · proceso de pago', detalle: f.procesoPago.monto !== null ? fmtMoneda.format(f.procesoPago.monto) : '' },
+        f.pago && { fecha: f.pago.fecha, titulo: cr + ' · pagado', detalle: f.factura ? fmtMoneda.format(f.factura.monto) : '', destacado: true }
+      ];
+    }).filter(Boolean),
     p.reduccion && { fecha: p.reduccion.fecha, titulo: 'Reducción líquida', detalle: `El autorizado queda en ${fmtMoneda.format(p.reduccion.montoEjercido)}${m.autorizadoPrevio !== null ? ` (antes ${fmtMoneda.format(m.autorizadoPrevio)})` : ''}`, destacado: true },
-    p.fechaEntrega && indicePaso(p.estatus) >= indicePaso('entregado') && { fecha: p.fechaEntrega, titulo: 'Entrega', detalle: 'El proveedor entregó el bien o servicio' },
     p.estatus === 'pagado' && p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Contrato pagado', detalle: 'Proceso concluido', destacado: true }
   ].filter(Boolean).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
 
@@ -407,10 +408,8 @@ function renderCuerpoPedido(p) {
   const docs = [
     bloqueDocumento(p, 'Contrato', p.contrato, 'contrato', 'Subir el archivo del contrato'),
     p.autorizacion ? bloqueDocumento(p, 'Oficio de autorización', p.documentoAutorizacion, 'documento-autorizacion', 'Adjuntar el oficio de autorización') : '',
-    p.contrarecibo ? bloqueDocumento(p, 'Contrarrecibo', p.documentoContrarecibo, 'documento-contrarecibo', 'Adjuntar el contrarrecibo') : '',
     p.oficio ? bloqueDocumento(p, 'Oficio de adecuación', p.documentoAdecuacion, 'documento-adecuacion', 'Adjuntar el oficio de adecuación') : '',
-    p.reduccion ? bloqueDocumento(p, 'Reducción líquida', p.documentoReduccion, 'documento-reduccion', 'Adjuntar el documento de la reducción líquida') : '',
-    p.fechaEntrega && idxActual >= indicePaso('entregado') ? bloqueDocumento(p, 'Documento de entrega', p.documentoEntrega, 'documento-entrega', 'Adjuntar documento de entrega (opcional)') : ''
+    p.reduccion ? bloqueDocumento(p, 'Reducción líquida', p.documentoReduccion, 'documento-reduccion', 'Adjuntar el documento de la reducción líquida') : ''
   ].join('');
 
   // Cantidades del contrato: al final y plegadas; se abren al tocar el encabezado
@@ -419,7 +418,7 @@ function renderCuerpoPedido(p) {
     <details class="detalle-montos" ${tarjetasMontosAbiertas.has(p.id) ? 'open' : ''} data-montos-id="${p.id}">
       <summary>
         <span class="dm-titulo"><i class="ti ti-chevron-right"></i> Cantidades del contrato</span>
-        <span class="dm-resumen">Vigente <b>${fmtMoneda.format(mm.vigente)}</b>${mm.numFacturas ? ` · facturado ${fmtMoneda.format(mm.facturado)}` : ''}</span>
+        <span class="dm-resumen">Vigente <b>${fmtMoneda.format(mm.vigente)}</b>${mm.numContrarecibos ? ` · contrarrecibos ${fmtMoneda.format(mm.contrarecibos)}` : ''}</span>
       </summary>
       ${renderMontosContrato(p)}
     </details>`;
@@ -508,30 +507,6 @@ function renderPanelAccionPedido(p, idxActual) {
 
     case 'oficio_autorizado':
       return panel({
-        titulo: 'Contrarrecibo', ruta: 'contrarecibo', doc: 'documento-contrarecibo', boton: 'Registrar contrarrecibo',
-        ayuda: `Autorizado vigente: ${fmtMoneda.format(m.autorizado)}.`,
-        campos: `
-          <div class="fila-formulario">
-            <label>No. de contrarrecibo
-              <input type="text" name="noContrarecibo" required>
-            </label>
-            <label>Fecha de contrarrecibo
-              <input type="date" name="fecha" value="${hoy}" required>
-            </label>
-          </div>
-          <div class="fila-formulario">
-            <label>Cuenta por pagar
-              <input type="text" name="cuentaPorPagar" required>
-            </label>
-            <label>Monto
-              <input type="number" name="monto" step="0.01" min="0.01" value="${valor(m.autorizado)}" required>
-            </label>
-          </div>
-          ${campoDocumento('Adjuntar el contrarrecibo')}`
-      });
-
-    case 'contrarecibo':
-      return panel({
         titulo: 'Oficio de adecuación', ruta: 'oficio-adecuacion', doc: 'documento-adecuacion', boton: 'Registrar oficio', opcional: true,
         ayuda: `Si el monto autorizado cambia. Hoy está en ${fmtMoneda.format(m.autorizado)}; el oficio de adecuación lo reemplaza.`,
         campos: `
@@ -551,50 +526,24 @@ function renderPanelAccionPedido(p, idxActual) {
 
     case 'adecuacion':
       return panel({
-        titulo: 'Primera factura', ruta: 'factura-nueva', doc: 'documento-factura', boton: 'Registrar factura',
-        ayuda: `Puedes registrar varias facturas hasta cubrir ${fmtMoneda.format(m.disponible)}. Con la primera ya puedes avanzar.`,
-        campos: `
-          <div class="fila-formulario">
-            <label>No. de factura
-              <input type="text" name="noFactura" required>
-            </label>
-            <label>Fecha de factura
-              <input type="date" name="fecha" value="${hoy}" required>
-            </label>
-          </div>
-          <label>Descripción
-            <input type="text" name="descripcion" value="${escaparHtml(p.producto)}" required>
-          </label>
-          <label>Monto
-            <input type="number" name="monto" step="0.01" min="0.01" max="${valor(m.porFacturar)}" value="${valor(m.porFacturar)}" required>
-          </label>
-          ${campoDocumento('Adjuntar la factura')}`
+        titulo: 'Primer contrarrecibo', ruta: 'contrarecibo-nuevo', doc: 'documento-contrarecibo', boton: 'Registrar contrarrecibo',
+        ayuda: `Puedes registrar varios contrarrecibos hasta cubrir ${fmtMoneda.format(m.disponible)}. Cada uno lleva después su factura, entrega, contabilidad y pago.`,
+        campos: camposContrarecibo(valor(m.porRegistrar), hoy) + campoDocumento('Adjuntar el contrarrecibo')
       });
 
     case 'factura_recibida':
       return panel({
         titulo: 'Reducción líquida', ruta: 'reduccion', doc: 'documento-reduccion', boton: 'Registrar reducción líquida', opcional: true,
-        ayuda: `La reducción líquida reemplaza el autorizado vigente (hoy ${fmtMoneda.format(m.autorizado)}) por lo que realmente se ocupó. No puede ser menor a lo ya facturado (${fmtMoneda.format(m.facturado)}). Las ampliaciones o cancelaciones que se registren después se aplicarán sobre este nuevo monto.`,
+        ayuda: `La reducción líquida reemplaza el autorizado vigente (hoy ${fmtMoneda.format(m.autorizado)}) por lo que realmente se ocupó. No puede ser menor a lo ya amparado en contrarrecibos (${fmtMoneda.format(m.contrarecibos)}). Las ampliaciones o cancelaciones que se registren después se aplicarán sobre este nuevo monto.`,
         campos: `
           <label>¿Cuánto se gastó del total autorizado? (nuevo autorizado)
-            <input type="number" name="montoEjercido" step="0.01" min="${valor(Math.max(0.01, m.facturado))}" max="${valor(m.autorizado)}" value="${valor(m.facturado)}" data-autorizado="${valor(m.autorizado)}" data-facturado="${valor(m.facturado)}" required>
+            <input type="number" name="montoEjercido" step="0.01" min="${valor(Math.max(0.01, m.contrarecibos))}" max="${valor(m.autorizado)}" value="${valor(m.contrarecibos)}" data-autorizado="${valor(m.autorizado)}" data-facturado="${valor(m.contrarecibos)}" required>
           </label>
-          <p class="calculo-reduccion" data-calculo-reduccion>${m.facturado !== null && m.autorizado !== null ? `Reducción: ${fmtMoneda.format(m.autorizado - m.facturado)} · el contrato queda en ${fmtMoneda.format(m.facturado)}` : ''}</p>
+          <p class="calculo-reduccion" data-calculo-reduccion>${m.autorizado !== null ? `Reducción: ${fmtMoneda.format(m.autorizado - m.contrarecibos)} · el contrato queda en ${fmtMoneda.format(m.contrarecibos)}` : ''}</p>
           ${campoDocumento('Adjuntar el documento de la reducción (opcional)')}`
       });
 
     case 'reduccion':
-      return panel({
-        titulo: 'Entrega', ruta: 'entrega', doc: 'documento-entrega', boton: 'Registrar entrega', opcional: true,
-        ayuda: 'Cuando el proveedor entregue el bien o servicio.',
-        campos: `
-          <label>Fecha de entrega
-            <input type="date" name="fechaEntrega" value="${p.fechaEntrega || hoy}" required>
-          </label>
-          ${campoDocumento('Adjuntar documento de entrega (opcional)')}`
-      });
-
-    case 'entregado':
     case 'en_contabilidad':
     case 'en_pago': {
       const fs = p.facturas || [];
@@ -603,17 +552,17 @@ function renderPanelAccionPedido(p, idxActual) {
         <div class="panel-paso-actual panel-seguimiento">
           <div class="ppa-encabezado">
             <span class="ppa-num"><i class="ti ti-list-check"></i></span>
-            <div><div class="ppa-titulo">Seguimiento por factura</div>
-            <div class="ppa-ayuda">Cada factura avanza sola: contabilidad → proceso de pago → pagada. El contrato se concluye cuando todas estén pagadas y no quede nada por facturar.</div></div>
+            <div><div class="ppa-titulo">Seguimiento por contrarrecibo</div>
+            <div class="ppa-ayuda">Cada contrarrecibo avanza solo: factura → entrega → contabilidad → proceso de pago → pagado. El contrato se concluye cuando todos estén pagados y el monto esté cubierto.</div></div>
           </div>
           <div class="seguimiento-cuentas">
-            <span><b>${cuenta('registrada')}</b> por turnar</span>
+            <span><b>${cuenta('contrarecibo') + cuenta('facturado') + cuenta('entregado')}</b> por turnar</span>
             <span><b>${cuenta('en_contabilidad')}</b> en contabilidad</span>
             <span><b>${cuenta('en_pago')}</b> en pago</span>
-            <span class="ok"><b>${cuenta('pagada')}</b> pagadas</span>
+            <span class="ok"><b>${cuenta('pagada')}</b> pagados</span>
           </div>
-          ${m.porFacturar > 0.005 ? `<p class="aviso-monto"><i class="ti ti-receipt"></i>Faltan ${fmtMoneda.format(m.porFacturar)} por facturar.</p>` : ''}
-          <a class="btn btn-secundario btn-sm ir-facturas" href="#facturas-${p.id}"><i class="ti ti-arrow-down"></i> Ir a las facturas</a>
+          ${m.porRegistrar > 0.005 ? `<p class="aviso-monto"><i class="ti ti-receipt-2"></i>Faltan ${fmtMoneda.format(m.porRegistrar)} por amparar con contrarrecibos.</p>` : ''}
+          <a class="btn btn-secundario btn-sm ir-facturas" href="#facturas-${p.id}"><i class="ti ti-arrow-down"></i> Ir a los contrarrecibos</a>
         </div>`;
     }
 
@@ -623,14 +572,38 @@ function renderPanelAccionPedido(p, idxActual) {
 }
 
 
-// ---------- Facturas del contrato (varias) y su seguimiento ----------
+// ---------- Contrarrecibos del contrato (varios) y su seguimiento ----------
 
-const ESTADO_FACTURA = {
-  registrada:      { texto: 'Registrada',      clase: 'f-registrada', siguiente: 'contabilidad', boton: 'Turnar a contabilidad', campo: 'Fecha en que pasó a contabilidad' },
-  en_contabilidad: { texto: 'En contabilidad', clase: 'f-contab',     siguiente: 'inicio-pago',  boton: 'Iniciar pago',          campo: 'Fecha de inicio del pago' },
-  en_pago:         { texto: 'En pago',         clase: 'f-pago',       siguiente: 'pagado',       boton: 'Registrar pago',        campo: 'Fecha de pago' },
-  pagada:          { texto: 'Pagada',          clase: 'f-pagada' }
-};
+function camposContrarecibo(monto, fecha, cr = {}) {
+  return `
+    <div class="fila-formulario">
+      <label>No. de contrarrecibo
+        <input type="text" name="noContrarecibo" value="${escaparHtml(cr.noContrarecibo || '')}" required>
+      </label>
+      <label>Fecha de contrarrecibo
+        <input type="date" name="fecha" value="${cr.fecha || fecha}" required>
+      </label>
+    </div>
+    <div class="fila-formulario">
+      <label>Cuenta por pagar
+        <input type="text" name="cuentaPorPagar" value="${escaparHtml(cr.cuentaPorPagar || '')}" required>
+      </label>
+      <label>Monto
+        <input type="number" name="monto" step="0.01" min="0.01" value="${monto}" required>
+      </label>
+    </div>`;
+}
+
+// Etapas de cada contrarrecibo, en orden
+const ETAPAS_CR = [
+  { clave: 'contrarecibo',    texto: 'Contrarrecibo', icono: 'ti-receipt-2' },
+  { clave: 'facturado',       texto: 'Factura',       icono: 'ti-receipt' },
+  { clave: 'entregado',       texto: 'Entrega',       icono: 'ti-truck-delivery' },
+  { clave: 'en_contabilidad', texto: 'Contabilidad',  icono: 'ti-calculator' },
+  { clave: 'en_pago',         texto: 'Proceso de pago', icono: 'ti-cash' },
+  { clave: 'pagada',          texto: 'Pagado',        icono: 'ti-circle-check' }
+];
+const CLASE_CR = { contrarecibo: 'f-registrada', facturado: 'f-registrada', entregado: 'f-registrada', en_contabilidad: 'f-contab', en_pago: 'f-pago', pagada: 'f-pagada' };
 
 function renderFacturas(p, idxActual) {
   if (idxActual < indicePaso('factura_recibida')) return '';
@@ -640,106 +613,132 @@ function renderFacturas(p, idxActual) {
   const docFila = (archivo, ruta, texto) => archivo
     ? `<button type="button" class="chip-doc" data-ver-doc="${ruta}" data-pedido-id="${p.id}" title="${escaparHtml(archivo.nombre)}"><i class="ti ti-file-type-pdf"></i>${texto}</button>`
     : `<label class="chip-doc chip-doc--subir" title="Adjuntar ${texto.toLowerCase()}"><i class="ti ti-paperclip"></i>${texto}<input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}" hidden></label>`;
+  const zonaDoc = texto => `
+    <label class="zona-archivo zona-archivo--opcional fi-oficio-doc">
+      <i class="ti ti-file-upload"></i>
+      <span class="zona-archivo__texto" data-nombre-archivo data-texto-original="${texto}">${texto}</span>
+      <input type="file" name="documento" accept=".pdf,.doc,.docx,image/*">
+    </label>`;
+  // Formulario plegado de un avance: ruta = endpoint, doc = prefijo del documento
+  const formCR = (f, idPanel, ruta, doc, titulo, campos, boton) => `
+    <div class="fi-oficio" id="${idPanel}" hidden>
+      <form class="form-avance-cr" data-pedido-id="${p.id}" data-fid="${f.id}" data-ruta="${ruta}" ${doc ? `data-doc="${doc}"` : ''}>
+        <div class="fi-oficio-titulo">${titulo}</div>
+        ${campos}
+        <div class="ppa-botones">
+          <button type="submit" class="btn btn-primario btn-sm">${boton} <i class="ti ti-arrow-right"></i></button>
+          <button type="button" class="btn btn-texto btn-sm" data-abrir-cr="${idPanel}">Cancelar</button>
+        </div>
+      </form>
+    </div>`;
 
   const filas = (p.facturas || []).map(f => {
-    const e = ESTADO_FACTURA[f.estado];
-    const oc = f.oficioContabilidad;
-    const faltaOficio = !oc && f.estado !== 'registrada';
-    // Turnar a contabilidad = registrar el oficio (No., fecha, monto y documento)
-    const panelOficio = (f.estado === 'registrada' || faltaOficio) ? `
-      <div class="fi-oficio" id="oficio-contab-${f.id}" hidden>
-        <form class="form-oficio-contab" data-pedido-id="${p.id}" data-fid="${f.id}" data-modo="${f.estado === 'registrada' ? 'turnar' : 'completar'}">
-          <div class="fi-oficio-titulo">Oficio para contabilidad · factura ${escaparHtml(f.noFactura)}</div>
-          <div class="fila-formulario fila-4">
-            <label>No. de oficio<input type="text" name="noOficio" placeholder="Ej. SEBISO/CA/0123/2026" required></label>
-            <label>Fecha del oficio<input type="date" name="fecha" value="${f.fechaContabilidad || hoy}" required></label>
-            <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${valor(f.monto)}" required></label>
-            <label class="zona-archivo zona-archivo--opcional fi-oficio-doc">
-              <i class="ti ti-file-upload"></i>
-              <span class="zona-archivo__texto" data-nombre-archivo data-texto-original="Adjuntar el oficio">Adjuntar el oficio</span>
-              <input type="file" name="documento" accept=".pdf,.doc,.docx,image/*">
-            </label>
-          </div>
-          <div class="ppa-botones">
-            <button type="submit" class="btn btn-primario btn-sm">${f.estado === 'registrada' ? 'Turnar a contabilidad' : 'Guardar oficio'} <i class="ti ti-arrow-right"></i></button>
-            <button type="button" class="btn btn-texto btn-sm" data-abrir-oficio="${f.id}">Cancelar</button>
-          </div>
-        </form>
-      </div>` : '';
-    // Iniciar el proceso de pago = fecha, monto y documento
-    const panelPago = f.estado === 'en_contabilidad' ? `
-      <div class="fi-oficio" id="proc-pago-${f.id}" hidden>
-        <form class="form-proc-pago" data-pedido-id="${p.id}" data-fid="${f.id}">
-          <div class="fi-oficio-titulo">Proceso de pago · factura ${escaparHtml(f.noFactura)}</div>
-          <div class="fila-formulario fila-4">
-            <label>Fecha<input type="date" name="fecha" value="${hoy}" required></label>
-            <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${valor(f.monto)}" required></label>
-            <label class="zona-archivo zona-archivo--opcional fi-oficio-doc" style="grid-column: span 2">
-              <i class="ti ti-file-upload"></i>
-              <span class="zona-archivo__texto" data-nombre-archivo data-texto-original="Adjuntar el documento del proceso de pago">Adjuntar el documento del proceso de pago</span>
-              <input type="file" name="documento" accept=".pdf,.doc,.docx,image/*">
-            </label>
-          </div>
-          <div class="ppa-botones">
-            <button type="submit" class="btn btn-primario btn-sm">Iniciar proceso de pago <i class="ti ti-arrow-right"></i></button>
-            <button type="button" class="btn btn-texto btn-sm" data-abrir-pago="${f.id}">Cancelar</button>
-          </div>
-        </form>
-      </div>` : '';
-    const pp = f.procesoPago;
-    const avance = f.estado === 'registrada'
-      ? `<button type="button" class="btn btn-primario btn-sm" data-abrir-oficio="${f.id}">Turnar a contabilidad</button>`
-      : f.estado === 'en_contabilidad'
-      ? `<button type="button" class="btn btn-primario btn-sm" data-abrir-pago="${f.id}">Iniciar pago</button>`
-      : e.siguiente ? `
-      <form class="form-avance-factura" data-pedido-id="${p.id}" data-fid="${f.id}" data-avance="${e.siguiente}">
-        <label class="sr-solo" for="av-${f.id}">${e.campo}</label>
-        <input type="date" id="av-${f.id}" name="fecha" value="${hoy}" required title="${e.campo}">
-        <button type="submit" class="btn btn-primario btn-sm">${e.boton}</button>
-      </form>` : `<span class="f-listo"><i class="ti ti-circle-check"></i> Pagada el ${fmtFecha(f.fechaPagado)}</span>`;
+    const cr = f.contrarecibo || {};
+    const fa = f.factura, oc = f.oficioContabilidad, pp = f.procesoPago;
+    const etiqueta = 'contrarrecibo ' + escaparHtml(cr.noContrarecibo || '');
+    const idxE = ETAPAS_CR.findIndex(e => e.clave === f.estado);
+    const montoRef = valor(fa ? fa.monto : cr.monto);
+    const faltaOficio = oc && !oc.noOficio;
+
+    // El siguiente avance de este contrarrecibo
+    const sig = {
+      contrarecibo: { ruta: 'factura', doc: 'documento-factura', boton: 'Registrar factura', titulo: 'Factura del ' + etiqueta, campos: `
+        <div class="fila-formulario fila-4">
+          <label>No. de factura<input type="text" name="noFactura" required></label>
+          <label>Fecha de factura<input type="date" name="fecha" value="${hoy}" required></label>
+          <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${valor(cr.monto)}" required></label>
+          <label>Descripción<input type="text" name="descripcion" value="${escaparHtml(p.producto)}" required></label>
+        </div>${zonaDoc('Adjuntar la factura')}` },
+      facturado: { ruta: 'entrega', doc: 'documento-entrega', boton: 'Registrar entrega', titulo: 'Entrega del ' + etiqueta, campos: `
+        <div class="fila-formulario">
+          <label>Fecha de entrega<input type="date" name="fecha" value="${hoy}" required></label>
+          ${zonaDoc('Adjuntar documento de entrega')}
+        </div>` },
+      entregado: { ruta: 'contabilidad', doc: 'documento-contab', boton: 'Turnar a contabilidad', titulo: 'Oficio para contabilidad · ' + etiqueta, campos: `
+        <div class="fila-formulario fila-4">
+          <label>No. de oficio<input type="text" name="noOficio" placeholder="Ej. SEBISO/CA/0123/2026" required></label>
+          <label>Fecha del oficio<input type="date" name="fecha" value="${hoy}" required></label>
+          <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${montoRef}" required></label>
+          ${zonaDoc('Adjuntar el oficio')}
+        </div>` },
+      en_contabilidad: { ruta: 'inicio-pago', doc: 'documento-procpago', boton: 'Iniciar proceso de pago', titulo: 'Proceso de pago · ' + etiqueta, campos: `
+        <div class="fila-formulario fila-4">
+          <label>Fecha<input type="date" name="fecha" value="${hoy}" required></label>
+          <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${montoRef}" required></label>
+          ${zonaDoc('Adjuntar el documento del proceso de pago')}
+        </div>` },
+      en_pago: { ruta: 'pagado', doc: 'documento-pago', boton: 'Marcar pagado', titulo: 'Pago del ' + etiqueta, campos: `
+        <div class="fila-formulario">
+          <label>Fecha de pago<input type="date" name="fecha" value="${hoy}" required></label>
+          ${zonaDoc('Adjuntar el comprobante de pago')}
+        </div>` }
+    }[f.estado];
+    const idSig = 'cr-sig-' + f.id, idEdit = 'cr-edit-' + f.id, idOf = 'cr-oficio-' + f.id;
+    const accion = sig
+      ? `<button type="button" class="btn btn-primario btn-sm" data-abrir-cr="${idSig}">${sig.boton}</button>`
+      : `<span class="f-listo"><i class="ti ti-circle-check"></i> Pagado el ${fmtFecha(f.pago && f.pago.fecha)}</span>`;
+
+    const pasos = ETAPAS_CR.map((e, i) => `<span class="cr-etapa ${i <= idxE ? 'hecha' : i === idxE + 1 ? 'sigue' : ''}" title="${e.texto}"><i class="ti ${i <= idxE ? 'ti-check' : e.icono}"></i>${e.texto}</span>`).join('');
+
+    const meta = [
+      `${fmtFecha(cr.fecha)} · cuenta por pagar ${escaparHtml(cr.cuentaPorPagar || '—')}`,
+      fa && `factura ${escaparHtml(fa.noFactura)} (${fmtFecha(fa.fecha)}, ${fmtMoneda.format(fa.monto)})`,
+      f.entrega && `entrega ${fmtFecha(f.entrega.fecha)}`,
+      oc && `oficio contab. ${escaparHtml(oc.noOficio || 'sin número')} (${fmtFecha(oc.fecha)}${oc.monto !== null ? ', ' + fmtMoneda.format(oc.monto) : ''})`,
+      pp && `pago iniciado ${fmtFecha(pp.fecha)}${pp.monto !== null ? ' (' + fmtMoneda.format(pp.monto) + ')' : ''}`
+    ].filter(Boolean).join(' · ');
+
     return `
-      <li class="factura-item ${e.clase}">
+      <li class="factura-item ${CLASE_CR[f.estado]}">
         <div class="fi-principal">
-          <span class="fi-no">${escaparHtml(f.noFactura)}</span>
-          <span class="fi-desc">${escaparHtml(f.descripcion || '')}</span>
-          <span class="fi-meta">${fmtFecha(f.fecha)}${oc ? ` · oficio contab. ${escaparHtml(oc.noOficio)} (${fmtFecha(oc.fecha)}, ${fmtMoneda.format(oc.monto)})` : f.fechaContabilidad ? ' · contab. ' + fmtFecha(f.fechaContabilidad) : ''}${f.fechaInicioPago ? ' · pago iniciado ' + fmtFecha(f.fechaInicioPago) + (pp && pp.monto !== null ? ' (' + fmtMoneda.format(pp.monto) + ')' : '') : ''}</span>
-          ${faltaOficio ? `<button type="button" class="fi-falta-oficio" data-abrir-oficio="${f.id}"><i class="ti ti-alert-triangle"></i> Falta el oficio de contabilidad · completar</button>` : ''}
+          <span class="fi-no">CR ${escaparHtml(cr.noContrarecibo || '')}</span>
+          <span class="fi-desc">${fa ? escaparHtml(fa.descripcion || '') : 'Sin factura aún'}</span>
+          <span class="fi-meta">${meta}</span>
+          <span class="cr-etapas">${pasos}</span>
+          ${faltaOficio ? `<button type="button" class="fi-falta-oficio" data-abrir-cr="${idOf}"><i class="ti ti-alert-triangle"></i> Falta el oficio de contabilidad · completar</button>` : ''}
         </div>
-        <span class="fi-monto">${fmtMoneda.format(f.monto)}</span>
-        <span class="fi-estado">${e.texto}</span>
+        <span class="fi-monto">${fmtMoneda.format(cr.monto || 0)}</span>
+        <span class="fi-estado">${ETAPAS_CR[idxE] ? (f.estado === 'pagada' ? 'Pagado' : ETAPAS_CR[idxE].texto) : ''}</span>
         <div class="fi-docs">
-          ${docFila(f.documento, 'documento-factura-' + f.id, 'Factura')}
+          ${docFila(cr.documento, 'documento-contrarecibo-' + f.id, 'Contrarrecibo')}
+          ${fa ? docFila(fa.documento, 'documento-factura-' + f.id, 'Factura') : ''}
+          ${f.entrega ? docFila(f.entrega.documento, 'documento-entrega-' + f.id, 'Entrega') : ''}
           ${oc ? docFila(oc.documento, 'documento-contab-' + f.id, 'Oficio contab.') : ''}
           ${pp ? docFila(pp.documento, 'documento-procpago-' + f.id, 'Proceso de pago') : ''}
-          ${f.estado === 'pagada' || f.estado === 'en_pago' ? docFila(f.comprobante, 'documento-pago-' + f.id, 'Comprobante de pago') : ''}
+          ${f.pago ? docFila(f.pago.documento, 'documento-pago-' + f.id, 'Comprobante de pago') : ''}
         </div>
-        <div class="fi-accion">${avance}</div>
-        ${f.estado !== 'pagada' ? `<button type="button" class="btn-icono" data-eliminar-factura="${f.id}" data-pedido-id="${p.id}" title="Eliminar factura" aria-label="Eliminar factura ${escaparHtml(f.noFactura)}"><i class="ti ti-trash"></i></button>` : ''}
-        ${panelOficio}
-        ${panelPago}
+        <div class="fi-accion">
+          ${accion}
+          ${f.estado !== 'pagada' ? `<button type="button" class="btn btn-texto btn-sm" data-abrir-cr="${idEdit}"><i class="ti ti-pencil"></i> Editar contrarrecibo</button>` : ''}
+        </div>
+        ${f.estado !== 'pagada' ? `<button type="button" class="btn-icono" data-eliminar-factura="${f.id}" data-pedido-id="${p.id}" title="Eliminar contrarrecibo" aria-label="Eliminar ${etiqueta}"><i class="ti ti-trash"></i></button>` : ''}
+        ${sig ? formCR(f, idSig, sig.ruta, sig.doc, sig.titulo, sig.campos, sig.boton) : ''}
+        ${f.estado !== 'pagada' ? formCR(f, idEdit, 'contrarecibo', '', 'Editar ' + etiqueta, camposContrarecibo(valor(cr.monto), hoy, cr), 'Guardar cambios') : ''}
+        ${faltaOficio ? formCR(f, idOf, 'oficio-contabilidad', 'documento-contab', 'Oficio para contabilidad · ' + etiqueta, `
+          <div class="fila-formulario fila-4">
+            <label>No. de oficio<input type="text" name="noOficio" required></label>
+            <label>Fecha del oficio<input type="date" name="fecha" value="${oc.fecha || hoy}" required></label>
+            <label>Monto<input type="number" name="monto" step="0.01" min="0.01" value="${montoRef}" required></label>
+            ${zonaDoc('Adjuntar el oficio')}
+          </div>`, 'Guardar oficio') : ''}
       </li>`;
   }).join('');
 
-  const puedeAgregar = m.porFacturar === null || m.porFacturar > 0.005;
+  const puedeAgregar = m.porRegistrar === null || m.porRegistrar > 0.005;
   const formNueva = puedeAgregar && (p.facturas || []).length ? `
     <details class="nueva-factura">
-      <summary><i class="ti ti-plus"></i> Registrar otra factura <span>· por facturar ${m.porFacturar !== null ? fmtMoneda.format(m.porFacturar) : ''}</span></summary>
-      <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="factura-nueva" data-doc="documento-factura">
-        <div class="fila-formulario fila-4">
-          <label>No. de factura<input type="text" name="noFactura" required></label>
-          <label>Fecha<input type="date" name="fecha" value="${hoy}" required></label>
-          <label>Monto<input type="number" name="monto" step="0.01" min="0.01" max="${valor(m.porFacturar)}" value="${valor(m.porFacturar)}" required></label>
-          <label>Descripción<input type="text" name="descripcion" value="${escaparHtml(p.producto)}" required></label>
-        </div>
-        ${campoDocumento('Adjuntar la factura')}
-        <button type="submit" class="btn btn-primario btn-sm">Registrar factura <i class="ti ti-arrow-right"></i></button>
+      <summary><i class="ti ti-plus"></i> Registrar otro contrarrecibo <span>· por registrar ${m.porRegistrar !== null ? fmtMoneda.format(m.porRegistrar) : ''}</span></summary>
+      <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="contrarecibo-nuevo" data-doc="documento-contrarecibo">
+        ${camposContrarecibo(valor(m.porRegistrar), hoy)}
+        ${campoDocumento('Adjuntar el contrarrecibo')}
+        <button type="submit" class="btn btn-primario btn-sm">Registrar contrarrecibo <i class="ti ti-arrow-right"></i></button>
       </form>
-    </details>` : (!puedeAgregar ? `<p class="facturas-completo"><i class="ti ti-circle-check"></i> Facturación completa: ${fmtMoneda.format(m.facturado)} de ${fmtMoneda.format(m.disponible)}.</p>` : '');
+    </details>` : (!puedeAgregar ? `<p class="facturas-completo"><i class="ti ti-circle-check"></i> Monto cubierto: ${fmtMoneda.format(m.contrarecibos)} de ${fmtMoneda.format(m.disponible)} en contrarrecibos.</p>` : '');
 
   return `
     <div class="bloque-facturas" id="facturas-${p.id}">
-      <div class="subseccion-titulo">Facturas ${m.porFacturar !== null && m.porFacturar > 0.005 && (p.facturas || []).length ? `<span class="alerta-faltan" role="status"><i class="ti ti-alert-triangle"></i>Faltan ${fmtMoneda.format(m.porFacturar)} por facturar</span>` : ""}<span class="facturas-resumen">${m.numFacturas} · ${fmtMoneda.format(m.facturado)} facturado${m.disponible !== null ? ' de ' + fmtMoneda.format(m.disponible) : ''}</span></div>
-      ${filas ? `<ul class="lista-facturas">${filas}</ul>` : '<p class="texto-suave">Aún no hay facturas.</p>'}
+      <div class="subseccion-titulo">Contrarrecibos ${m.porRegistrar !== null && m.porRegistrar > 0.005 && (p.facturas || []).length ? `<span class="alerta-faltan" role="status"><i class="ti ti-alert-triangle"></i>Faltan ${fmtMoneda.format(m.porRegistrar)} por registrar</span>` : ''}<span class="facturas-resumen">${m.numContrarecibos} · ${fmtMoneda.format(m.contrarecibos)}${m.disponible !== null ? ' de ' + fmtMoneda.format(m.disponible) : ''}</span></div>
+      ${filas ? `<ul class="lista-facturas">${filas}</ul>` : '<p class="texto-suave">Aún no hay contrarrecibos.</p>'}
       ${formNueva}
     </div>`;
 }

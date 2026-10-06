@@ -165,3 +165,16 @@ ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS contab_monto NUMERIC(14,2);
 
 -- Iniciar el proceso de pago registra monto y documento (tipo 'procpago-<id>').
 ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS proc_pago_monto NUMERIC(14,2);
+
+-- Flujo por contrarrecibo (2026-10-06): cada fila de pedido_facturas es un
+-- contrarrecibo con su camino: factura → entrega → contabilidad → pago → pagado.
+-- Documentos: contrarecibo-<id>, factura-<id>, entrega-<id>, contab-<id>, procpago-<id>, pago-<id>.
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS cr_no VARCHAR(80);
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS cr_fecha DATE;
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS cr_cuenta VARCHAR(120);
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS cr_monto NUMERIC(14,2);
+ALTER TABLE pedido_facturas ADD COLUMN IF NOT EXISTS entrega_fecha DATE;
+ALTER TABLE pedido_facturas ALTER COLUMN no_factura DROP NOT NULL;
+ALTER TABLE pedido_facturas ALTER COLUMN fecha DROP NOT NULL;
+ALTER TABLE pedido_facturas ALTER COLUMN descripcion DROP NOT NULL;
+ALTER TABLE pedido_facturas ALTER COLUMN monto DROP NOT NULL;
