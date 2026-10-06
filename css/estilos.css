@@ -978,6 +978,29 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 .fi-falta-oficio:hover { background: #FAD9D9; }
 @media (max-width: 720px) { .fi-oficio .fila-4 { grid-template-columns: 1fr; } }
 
+/* Contrarrecibos: tarjeta ordenada en áreas */
+.lista-facturas .factura-item, .lista-facturas .factura-item:not(:has(.btn-icono)) {
+  grid-template-columns: minmax(0, 1fr) auto auto auto 32px;
+  grid-template-areas: "principal monto estado accion borrar" "docs docs docs docs docs";
+  gap: 12px 18px; padding: 16px 18px; align-items: start;
+}
+.lista-facturas .fi-principal { grid-area: principal; gap: 4px; }
+.lista-facturas .fi-monto { grid-area: monto; font-size: 17px; padding-top: 1px; }
+.lista-facturas .fi-estado { grid-area: estado; }
+.lista-facturas .fi-accion { grid-area: accion; }
+.lista-facturas .factura-item > .btn-icono { grid-area: borrar; }
+.lista-facturas .fi-docs { grid-area: docs; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; padding-top: 12px; border-top: 1px solid var(--borde); }
+.lista-facturas .fi-docs .chip-doc { width: 100%; height: 34px; justify-content: flex-start; box-sizing: border-box; }
+.lista-facturas .fi-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; line-height: 1.5; }
+.lista-facturas .fi-meta span { white-space: nowrap; }
+.lista-facturas .fi-desc { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+@media (max-width: 1000px) {
+  .lista-facturas .factura-item, .lista-facturas .factura-item:not(:has(.btn-icono)) {
+    grid-template-columns: minmax(0, 1fr) auto 32px;
+    grid-template-areas: "principal principal borrar" "monto estado estado" "accion accion accion" "docs docs docs";
+  }
+  .lista-facturas .fi-meta span { white-space: normal; }
+}
 /* Contrarrecibos: mini recorrido de cada uno y acciones */
 .cr-etapas { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .cr-etapa { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--texto-tenue); background: #F6F3EE; border: 1px solid transparent; }

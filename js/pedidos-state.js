@@ -51,6 +51,8 @@ function montosDelContrato(p) {
     disponible,
     // lo que aún se puede amparar con contrarrecibos nuevos
     porRegistrar: disponible !== null ? Math.max(0, Math.round((disponible - contrarecibos) * 100) / 100) : null,
+    // lo que aún falta facturar del disponible
+    porFacturar: disponible !== null ? Math.max(0, Math.round((disponible - facturado) * 100) / 100) : null,
     ejercido,
     autorizadoPrevio,
     reduccion: ejercido !== null && autorizadoPrevio !== null ? autorizadoPrevio - ejercido : null,
