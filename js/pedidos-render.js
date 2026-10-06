@@ -354,7 +354,7 @@ function renderCuerpoPedido(p) {
         <label class="zona-archivo zona-archivo--detalle">
           <i class="ti ti-file-upload"></i>
           <span class="zona-archivo__texto">Subir el archivo del contrato</span>
-          <small>PDF, Word o imagen · máximo 30 MB</small>
+          <small>PDF, Word o imagen · máximo 150 MB</small>
           <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-contrato="${p.id}">
         </label>`}
     </div>`;
@@ -374,7 +374,7 @@ function renderCuerpoPedido(p) {
         <label class="zona-archivo zona-archivo--detalle">
           <i class="ti ti-file-upload"></i>
           <span class="zona-archivo__texto">Adjuntar documento de entrega (opcional)</span>
-          <small>PDF, Word o imagen · máximo 30 MB</small>
+          <small>PDF, Word o imagen · máximo 150 MB</small>
           <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-entrega="${p.id}">
         </label>`}
     </div>`;
@@ -411,7 +411,7 @@ function renderPanelAccionPedido(p, idxActual) {
           <label class="zona-archivo zona-archivo--opcional">
             <i class="ti ti-file-upload"></i>
             <span class="zona-archivo__texto" data-nombre-archivo>Adjuntar documento de entrega (opcional)</span>
-            <small>Acta, remisión, evidencia… PDF, Word o imagen · máximo 30 MB</small>
+            <small>Acta, remisión, evidencia… PDF, Word o imagen · máximo 150 MB</small>
             <input type="file" name="documentoEntrega" accept=".pdf,.doc,.docx,image/*">
           </label>
           <button type="submit" class="btn btn-primario btn-sm">Registrar entrega <i class="ti ti-arrow-right"></i></button>

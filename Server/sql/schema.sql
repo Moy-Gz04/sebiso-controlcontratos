@@ -115,3 +115,8 @@ CREATE TABLE IF NOT EXISTS pedido_archivos (
 ALTER TABLE pedido_archivos ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'contrato';
 ALTER TABLE pedido_archivos DROP CONSTRAINT IF EXISTS pedido_archivos_pedido_id_key;
 CREATE UNIQUE INDEX IF NOT EXISTS pedido_archivos_pedido_tipo ON pedido_archivos (pedido_id, tipo);
+
+-- Los archivos se guardan en una carpeta de Google Drive (ver src/drive.js);
+-- aquí solo queda su ID. "datos" solo conserva archivos aún no migrados.
+ALTER TABLE pedido_archivos ADD COLUMN IF NOT EXISTS drive_id TEXT;
+ALTER TABLE pedido_archivos ALTER COLUMN datos DROP NOT NULL;

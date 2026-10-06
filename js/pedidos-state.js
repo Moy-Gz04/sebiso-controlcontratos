@@ -17,25 +17,17 @@ function calcularMontoDisponiblePedido(pedido) {
   return pedido.oficio.monto + ajustes;
 }
 
-const MAX_CONTRATO_MB = 30;
-
-function archivoABase64(archivo) {
-  return new Promise((resolve, reject) => {
-    const lector = new FileReader();
-    lector.onload = () => resolve(String(lector.result).split(',')[1]);
-    lector.onerror = () => reject(new Error('No se pudo leer el archivo.'));
-    lector.readAsDataURL(archivo);
-  });
-}
+const MAX_CONTRATO_MB = 150;
 
 const StorePedidos = {
   // Sube (o reemplaza) el archivo del contrato: PDF, Word o imagen
   async subirContrato(id, archivo, ruta = 'contrato') {
     if (archivo.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El archivo pesa más de ${MAX_CONTRATO_MB} MB.`);
-    const base64 = await archivoABase64(archivo);
+    // El archivo va tal cual (no en base64) y el servidor lo pasa a Drive por partes
     const datos = await peticion(`/pedidos/${id}/${ruta}`, {
       method: 'PUT',
-      body: JSON.stringify({ nombre: archivo.name, mime: archivo.type || 'application/octet-stream', base64 })
+      headers: { 'Content-Type': archivo.type || 'application/octet-stream', 'X-Nombre-Archivo': encodeURIComponent(archivo.name) },
+      body: archivo
     });
     return datos.pedido;
   },

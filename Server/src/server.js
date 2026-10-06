@@ -27,7 +27,7 @@ const origenesPermitidos = (process.env.CORS_ORIGIN || '')
 app.use(cors({
   origin: origenesPermitidos.length > 0 ? origenesPermitidos : true
 }));
-app.use(express.json({ limit: '45mb' }));   // el contrato viaja en base64
+app.use(express.json({ limit: '2mb' }));   // los archivos ya no van en JSON: viajan directo a Drive
 
 app.get('/api/salud', async (req, res) => {
   try {

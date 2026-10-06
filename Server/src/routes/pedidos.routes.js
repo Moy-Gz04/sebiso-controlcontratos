@@ -14,6 +14,7 @@ const router = express.Router();
 const db = require('../db');
 const { requiereAutenticacion } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const { driveConfigurado, subirADrive, enviarDesdeDrive, papeleraDrive } = require('../drive');
 
 router.use(requiereAutenticacion);
 
@@ -116,44 +117,55 @@ const MIMES_CONTRATO = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'image/jpeg', 'image/png', 'image/webp'
 ];
-const MAX_CONTRATO = 30 * 1024 * 1024;   // 30 MB
+const MAX_CONTRATO = 150 * 1024 * 1024;   // 150 MB (va a Drive por partes)
 
-// tipo: 'contrato' (archivo del contrato) o 'entrega' (documento de la entrega, opcional)
+// tipo: 'contrato' (archivo del contrato) o 'entrega' (documento de la entrega, opcional).
+// El archivo llega tal cual en el cuerpo (no en JSON) y se pasa por partes a
+// la carpeta de Drive; aquí solo se guarda su ID. Nombre en X-Nombre-Archivo.
 const subirArchivo = tipo => async (req, res) => {
   const id = Number(req.params.id);
-  const { nombre, mime, base64 } = req.body || {};
-  if (!nombre || !mime || !base64) return res.status(400).json({ ok: false, mensaje: 'Falta el archivo' });
+  const mime = String(req.headers['content-type'] || '').split(';')[0].trim();
+  const tamano = Number(req.headers['content-length'] || 0);
+  let nombre = 'archivo';
+  try { nombre = decodeURIComponent(String(req.headers['x-nombre-archivo'] || 'archivo')); } catch (e) {}
   if (!MIMES_CONTRATO.includes(mime)) return res.status(400).json({ ok: false, mensaje: 'El archivo debe ser PDF, Word o imagen' });
-  const datos = Buffer.from(base64, 'base64');
-  if (datos.length === 0) return res.status(400).json({ ok: false, mensaje: 'El archivo está vacío' });
-  if (datos.length > MAX_CONTRATO) return res.status(413).json({ ok: false, mensaje: 'El archivo pesa más de 30 MB' });
+  if (!tamano) return res.status(400).json({ ok: false, mensaje: 'El archivo está vacío' });
+  if (tamano > MAX_CONTRATO) return res.status(413).json({ ok: false, mensaje: 'El archivo pesa más de ' + Math.round(MAX_CONTRATO / 1048576) + ' MB' });
+  if (!driveConfigurado()) return res.status(503).json({ ok: false, mensaje: 'La carpeta de Drive todavía no está configurada' });
   try {
     const { rows: existe } = await db.query('SELECT id FROM pedidos WHERE id = $1', [id]);
     if (existe.length === 0) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
+    const { rows: previo } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id = $1 AND tipo = $2', [id, tipo]);
+    const driveId = await subirADrive({ nombre: `${tipo === 'entrega' ? 'Entrega' : 'Contrato'} ${id} - ${nombre}`, mime, tamano, cuerpo: req });
     await db.query(
-      `INSERT INTO pedido_archivos (pedido_id, tipo, nombre, mime, tamano, datos) VALUES ($1,$2,$3,$4,$5,$6)
+      `INSERT INTO pedido_archivos (pedido_id, tipo, nombre, mime, tamano, datos, drive_id) VALUES ($1,$2,$3,$4,$5,NULL,$6)
        ON CONFLICT (pedido_id, tipo) DO UPDATE SET nombre = EXCLUDED.nombre, mime = EXCLUDED.mime,
-         tamano = EXCLUDED.tamano, datos = EXCLUDED.datos, subido_en = now()`,
-      [id, tipo, String(nombre).slice(0, 200), mime, datos.length, datos]
+         tamano = EXCLUDED.tamano, datos = NULL, drive_id = EXCLUDED.drive_id, subido_en = now()`,
+      [id, tipo, String(nombre).slice(0, 200), mime, tamano, driveId]
     );
+    if (previo[0] && previo[0].drive_id) papeleraDrive(previo[0].drive_id);
     const pedido = await cargarPedidoCompleto(id);
     res.json({ ok: true, pedido });
   } catch (error) {
     console.error('Error al subir archivo (' + tipo + '):', error);
-    res.status(500).json({ ok: false, mensaje: 'Error al guardar el archivo' });
+    if (!res.headersSent) res.status(500).json({ ok: false, mensaje: 'Error al guardar el archivo en Drive' });
   }
 };
 
 const verArchivo = tipo => async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT nombre, mime, datos FROM pedido_archivos WHERE pedido_id = $1 AND tipo = $2', [Number(req.params.id), tipo]);
+    const { rows } = await db.query('SELECT nombre, mime, drive_id, (drive_id IS NULL) AS en_base FROM pedido_archivos WHERE pedido_id = $1 AND tipo = $2', [Number(req.params.id), tipo]);
     if (rows.length === 0) return res.status(404).json({ ok: false, mensaje: 'No hay archivo' });
     res.setHeader('Content-Type', rows[0].mime);
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(rows[0].nombre)}`);
-    res.send(rows[0].datos);
+    if (rows[0].drive_id) return await enviarDesdeDrive(rows[0].drive_id, res);
+    // Archivos anteriores que aún no se pasan a Drive
+    const { rows: b } = await db.query('SELECT datos FROM pedido_archivos WHERE pedido_id = $1 AND tipo = $2', [Number(req.params.id), tipo]);
+    res.send(b[0].datos);
   } catch (error) {
     console.error('Error al leer archivo (' + tipo + '):', error);
-    res.status(500).json({ ok: false, mensaje: 'Error al leer el archivo' });
+    if (!res.headersSent) res.status(500).json({ ok: false, mensaje: 'Error al leer el archivo' });
+    else res.end();
   }
 };
 
