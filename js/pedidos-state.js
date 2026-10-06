@@ -53,10 +53,11 @@ const StorePedidos = {
       ventana.document.body.innerHTML = '<div style="font:16px Segoe UI,Arial,sans-serif;color:#5a1e2c;display:flex;align-items:center;justify-content:center;height:90vh;flex-direction:column;gap:10px"><b>Cargando documento…</b><span style="color:#777;font-size:13px">Los archivos grandes pueden tardar unos segundos.</span></div>';
     }
     try {
-      const resp = await fetch(`${API_BASE_URL}/pedidos/${id}/${ruta}`, { headers: { Authorization: `Bearer ${tokenSesion}` } });
-      if (!resp.ok) throw new Error('No se pudo abrir el archivo.');
-      const url = URL.createObjectURL(await resp.blob());
-      if (ventana) ventana.location = url; else window.open(url, '_blank');
+      // Se pide un enlace temporal y la pestaña abre el archivo directo del
+      // servidor (Chrome bloquea pasar la pestaña a un blob: creado aquí).
+      const datos = await peticion(`/pedidos/${id}/enlace/${ruta}`, { method: 'POST' });
+      const url = API_BASE_URL + datos.ruta;
+      if (ventana) ventana.location.href = url; else window.open(url, '_blank');
     } catch (err) {
       if (ventana) ventana.close();
       throw err;

@@ -13,6 +13,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requiereAutenticacion } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 
 router.use(requiereAutenticacion);
 
@@ -155,6 +156,14 @@ const verArchivo = tipo => async (req, res) => {
     res.status(500).json({ ok: false, mensaje: 'Error al leer el archivo' });
   }
 };
+
+// Enlace temporal (2 min) para abrir el archivo directo en otra pestaña
+router.post('/:id/enlace/:ruta', (req, res) => {
+  const { ruta } = req.params;
+  if (!['contrato', 'documento-entrega'].includes(ruta)) return res.status(400).json({ ok: false, mensaje: 'Archivo no válido' });
+  const acceso = jwt.sign({ id: req.usuario.id, usuario: req.usuario.usuario, uso: 'archivo' }, process.env.JWT_SECRET, { expiresIn: '2m' });
+  res.json({ ok: true, ruta: `/pedidos/${Number(req.params.id)}/${ruta}?acceso=${encodeURIComponent(acceso)}` });
+});
 
 router.put('/:id/contrato', subirArchivo('contrato'));
 router.get('/:id/contrato', verArchivo('contrato'));
