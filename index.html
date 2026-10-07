@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-<link rel="stylesheet" href="css/estilos.css?v=20261007v">
+<link rel="stylesheet" href="css/estilos.css?v=20261007w">
 </head>
 <body>
 
@@ -30,9 +30,13 @@
 
     <div class="login-card">
       <div class="login-header">
-        <div class="escudo-placeholder">
-          <img src="img/logo.png" alt="Escudo Secretaría de Bienestar e Inclusión Social"
-               onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'ti ti-building-bank'}))">
+        <!-- MiniSEBISO: la mascota del sistema; sus ojos siguen el ratón (js/minisebiso.js) -->
+        <div class="minisebiso" role="img" aria-label="MiniSEBISO, la mascota de SEBISO">
+          <div class="ms-cuerpo">
+            <span class="ms-ojo-mov izq"><span class="ms-ojo"></span></span>
+            <span class="ms-ojo-mov der"><span class="ms-ojo"></span></span>
+          </div>
+          <div class="ms-estrella"></div>
         </div>
         <div class="login-gov">Gobierno del Estado de Hidalgo</div>
         <div class="login-secretaria">Secretaría de Bienestar e Inclusión Social</div>
@@ -266,18 +270,19 @@
 <!-- Aviso flotante -->
 <div id="aviso-flotante"></div>
 
-<script src="js/config.js?v=20261007v"></script>
-<script src="js/state.js?v=20261007v"></script>
-<script src="js/pedidos-state.js?v=20261007v"></script>
-<script src="js/render.js?v=20261007v"></script>
-<script src="js/pedidos-render.js?v=20261007v"></script>
-<script src="js/modals.js?v=20261007v"></script>
-<script src="js/pedidos-modals.js?v=20261007v"></script>
-<script src="js/app.js?v=20261007v"></script>
-<script src="js/pedidos-app.js?v=20261007v"></script>
-<script src="js/arrastrar-archivos.js?v=20261007v"></script>
-<script src="js/lluvia.js?v=20261007v"></script>
-<script src="js/login-espacio.js?v=20261007v"></script>
-<script src="js/montos-input.js?v=20261007v"></script>
+<script src="js/config.js?v=20261007w"></script>
+<script src="js/state.js?v=20261007w"></script>
+<script src="js/pedidos-state.js?v=20261007w"></script>
+<script src="js/render.js?v=20261007w"></script>
+<script src="js/pedidos-render.js?v=20261007w"></script>
+<script src="js/modals.js?v=20261007w"></script>
+<script src="js/pedidos-modals.js?v=20261007w"></script>
+<script src="js/app.js?v=20261007w"></script>
+<script src="js/pedidos-app.js?v=20261007w"></script>
+<script src="js/arrastrar-archivos.js?v=20261007w"></script>
+<script src="js/lluvia.js?v=20261007w"></script>
+<script src="js/login-espacio.js?v=20261007w"></script>
+<script src="js/minisebiso.js?v=20261007w"></script>
+<script src="js/montos-input.js?v=20261007w"></script>
 </body>
 </html>
