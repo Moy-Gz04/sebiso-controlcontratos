@@ -1170,3 +1170,23 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 .confirmo-texto { margin: -6px 0 14px; font-size: 13.5px; color: var(--texto-suave); line-height: 1.5; }
 .form-confirmo label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--texto-suave); }
 .form-confirmo input[name="confirmo"] { letter-spacing: 1.5px; font-weight: 700; text-transform: uppercase; }
+
+/* Campana (la misma de las salas de Correspondencia) como marca de agua:
+   silueta usada como máscara para teñirla con la paleta del sistema */
+body::before {
+  content: ""; position: fixed; z-index: -1; pointer-events: none;
+  right: -60px; bottom: -60px; width: min(760px, 70vw); height: min(820px, 85vh);
+  background: var(--guinda); opacity: .06;
+  -webkit-mask: url(../img/campana-fondo.png) right bottom / contain no-repeat;
+          mask: url(../img/campana-fondo.png) right bottom / contain no-repeat;
+}
+body { position: relative; isolation: isolate; }
+.navbar-top { isolation: isolate; }
+.navbar-top::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  right: 30%; top: 6px; bottom: 2px; width: 150px;
+  background: var(--dorado); opacity: .28;
+  -webkit-mask: url(../img/campana-fondo.png) center / contain no-repeat;
+          mask: url(../img/campana-fondo.png) center / contain no-repeat;
+}
+@media (max-width: 720px) { .navbar-top::before { right: 8px; width: 90px; } }
