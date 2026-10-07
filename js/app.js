@@ -29,7 +29,9 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
 
   error.textContent = '';
   if (!usuario || !password) { error.textContent = 'Completa todos los campos.'; return; }
-  if (document.getElementById('chk-recordar').checked) localStorage.setItem('contratos_usuario_recordado', usuario);
+  // Recordarme: guarda el usuario para la próxima vez y mantiene la sesión abierta
+  recordarSesion = document.getElementById('chk-recordar').checked;
+  if (recordarSesion) localStorage.setItem('contratos_usuario_recordado', usuario);
   else localStorage.removeItem('contratos_usuario_recordado');
   boton.disabled = true;
   boton.classList.add('cargando');

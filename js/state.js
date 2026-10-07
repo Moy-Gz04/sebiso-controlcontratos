@@ -55,21 +55,30 @@ function recalcularSaldos(contrato) {
 
 // ---------- Sesión (compartida con Pedidos) ----------
 
-let tokenSesion = localStorage.getItem('contratos_token') || null;
-let usuarioSesion = localStorage.getItem('contratos_usuario') || null;
+// "Recordarme": con la casilla marcada la sesión se guarda en localStorage y sigue
+// abierta aunque se cierre el navegador; sin marcar va en sessionStorage y se cierra
+// al cerrar el navegador.
+let tokenSesion = localStorage.getItem('contratos_token') || sessionStorage.getItem('contratos_token') || null;
+let usuarioSesion = localStorage.getItem('contratos_usuario') || sessionStorage.getItem('contratos_usuario') || null;
+let recordarSesion = true;
 
 function guardarSesion(token, usuario) {
   tokenSesion = token;
   usuarioSesion = usuario;
-  localStorage.setItem('contratos_token', token);
-  localStorage.setItem('contratos_usuario', usuario);
+  limpiarAlmacenes();
+  const almacen = recordarSesion ? localStorage : sessionStorage;
+  almacen.setItem('contratos_token', token);
+  almacen.setItem('contratos_usuario', usuario);
+}
+
+function limpiarAlmacenes() {
+  for (const a of [localStorage, sessionStorage]) { a.removeItem('contratos_token'); a.removeItem('contratos_usuario'); }
 }
 
 function limpiarSesion() {
   tokenSesion = null;
   usuarioSesion = null;
-  localStorage.removeItem('contratos_token');
-  localStorage.removeItem('contratos_usuario');
+  limpiarAlmacenes();
 }
 
 async function peticion(ruta, opciones = {}) {

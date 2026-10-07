@@ -22,3 +22,19 @@
   });
   document.documentElement.addEventListener('mouseleave', centrar);
 })();
+
+// Al tocarlo saluda: brinca y muestra una burbuja sobre su cabeza unos segundos
+(function () {
+  const ms = document.querySelector('.minisebiso');
+  if (!ms) return;
+  let temporizador = null;
+  function saludar() {
+    ms.classList.remove('saltando'); void ms.offsetWidth; ms.classList.add('saltando');
+    ms.classList.add('hablando');
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => ms.classList.remove('hablando'), 4500);
+  }
+  ms.addEventListener('click', saludar);
+  ms.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); saludar(); } });
+  ms.addEventListener('animationend', (e) => { if (e.animationName === 'msSalto') ms.classList.remove('saltando'); });
+})();

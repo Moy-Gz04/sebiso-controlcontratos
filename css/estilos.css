@@ -1345,3 +1345,44 @@ body { position: relative; isolation: isolate; }
 @keyframes msRespirar { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015, .99); } }
 @keyframes msParpadear { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
 @media (prefers-reduced-motion: reduce) { .minisebiso, .ms-ojo { animation: none; } }
+
+/* Login: textos de la Secretaría más grandes, pie dentro del círculo y
+   botón que no cambia de tamaño mientras inicia sesión */
+#pantalla-login .login-gov { font-size: 11.5px; letter-spacing: .18em; }
+#pantalla-login .login-secretaria { font-size: 22px; line-height: 1.2; margin-top: 4px; }
+#pantalla-login .login-subsecretaria { font-size: 12.5px; margin-top: 4px; }
+#pantalla-login .login-titulo-bloque { margin-top: 14px; }
+#pantalla-login .login-pie { max-width: 290px; margin: 4px auto 0; font-size: 10.3px; line-height: 1.5; }
+#pantalla-login .btn-login.cargando { padding: 0; text-align: center; color: var(--neu-btn-text); }
+#pantalla-login .btn-login { flex-shrink: 0; }
+
+/* Burbuja de MiniSEBISO */
+.minisebiso { cursor: pointer; outline: none; }
+.minisebiso:focus-visible .ms-cuerpo { box-shadow: 0 0 0 3px rgba(214, 180, 110, .8); }
+.ms-burbuja {
+  position: absolute; left: 50%; bottom: calc(100% + 10px); z-index: 5;
+  width: 230px; padding: 10px 14px; border-radius: 16px;
+  background: #FBF6EE; color: #3A0818; font-size: 12.5px; font-weight: 600; line-height: 1.35; text-align: center;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .45), 0 0 0 1px rgba(214, 180, 110, .6);
+  opacity: 0; pointer-events: none; transform: translate(-50%, 8px) scale(.9); transform-origin: 50% 100%;
+  transition: opacity .2s ease, transform .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+.ms-burbuja::after {
+  content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+  border: 8px solid transparent; border-top-color: #FBF6EE;
+}
+.minisebiso.hablando .ms-burbuja { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.minisebiso.saltando { animation: msSalto .45s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes msSalto { 0% { transform: translateY(0); } 40% { transform: translateY(-10px) scale(1.04, .97); } 100% { transform: translateY(0); } }
+#pantalla-login .login-card > .login-header { max-width: 480px; }
+#pantalla-login .minisebiso { margin-bottom: 4px; }
+#pantalla-login .login-pie { margin-top: 0; }
+#pantalla-login .login-card { padding-top: 30px; padding-bottom: 64px; }
+#pantalla-login .minisebiso { width: 112px; }
+#pantalla-login .login-titulo-bloque { margin-top: 10px; }
+#pantalla-login .login-body { gap: 12px; margin-top: 16px; }
+#pantalla-login .login-pie { max-width: 270px; }
+@media (max-width: 620px), (max-height: 700px) {
+  #pantalla-login .login-card { padding: 34px 26px 28px; }
+  #pantalla-login .login-secretaria { font-size: 19px; }
+}
