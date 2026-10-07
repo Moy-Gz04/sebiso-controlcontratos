@@ -120,7 +120,7 @@ const StorePedidos = {
       if (!ventana) { window.open(url, '_blank'); return; }
       // La pestaña abre el archivo directo para que Chrome lo muestre en su visor
       // (descargar, imprimir, zoom); mientras responde sigue la barra de carga.
-      ventana.location.href = url;
+      await abrirEnVisor(ventana, url, () => clearInterval(avance));
     } catch (err) {
       clearInterval(avance);
       if (ventana) ventana.close();
@@ -195,3 +195,44 @@ const StorePedidos = {
 
   montoDisponible(pedido) { return calcularMontoDisponiblePedido(pedido); }
 };
+// Abre un documento en la pestaña `ventana`: los PDF y demás archivos en el visor
+// de Chrome (navegando a la URL); las imágenes en un visor propio con botón
+// "Descargar", porque Chrome no ofrece descarga al mostrar una imagen.
+async function abrirEnVisor(ventana, url, alTerminar) {
+  const ctrl = new AbortController();
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    const tipo = r.headers.get('Content-Type') || '';
+    if (!r.ok || !/^image\//i.test(tipo)) { ctrl.abort(); if (alTerminar) alTerminar(); ventana.location.href = url; return; }
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);
+    let nombre = m ? decodeURIComponent(m[1]) : 'documento';
+    if (!/\.\w{2,4}$/.test(nombre)) nombre += '.' + (tipo.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+    const blob = await r.blob();
+    if (alTerminar) alTerminar();
+    const enlace = URL.createObjectURL(blob);
+    const d = ventana.document;
+    d.title = nombre;
+    d.body.style.cssText = 'margin:0;background:#2b2b2e;font-family:Segoe UI,Arial,sans-serif';
+    d.body.innerHTML = '';
+    const barra = d.createElement('div');
+    barra.style.cssText = 'position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;background:#3A0818;color:#F3E2D9;font-size:14px;z-index:2';
+    const titulo = d.createElement('span'); titulo.textContent = nombre;
+    titulo.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    const btn = d.createElement('a'); btn.href = enlace; btn.download = nombre; btn.textContent = '⬇ Descargar';
+    btn.style.cssText = 'flex-shrink:0;padding:8px 18px;border-radius:999px;background:linear-gradient(135deg,#D8B866,#9C7A2E);color:#3A0818;font-weight:700;text-decoration:none';
+    const imp = d.createElement('button'); imp.textContent = '🖨 Imprimir';
+    imp.style.cssText = 'flex-shrink:0;padding:8px 18px;border-radius:999px;border:1px solid #D8B866;background:none;color:#F3E2D9;font-weight:700;cursor:pointer;font-size:14px';
+    imp.onclick = () => ventana.print();
+    const acciones = d.createElement('div'); acciones.style.cssText = 'display:flex;gap:8px'; acciones.append(imp, btn);
+    barra.append(titulo, acciones);
+    const img = d.createElement('img'); img.src = enlace; img.alt = nombre;
+    img.style.cssText = 'display:block;max-width:100%;margin:16px auto;box-shadow:0 6px 24px rgba(0,0,0,.5);background:#fff';
+    const st = d.createElement('style'); st.textContent = '@media print { body { background:#fff !important } div { display:none !important } img { box-shadow:none !important; margin:0 auto !important } }';
+    d.head.appendChild(st);
+    d.body.append(barra, img);
+  } catch (e) {
+    if (alTerminar) alTerminar();
+    ventana.location.href = url;
+  }
+}
