@@ -99,7 +99,7 @@ async function completar(P, fid, monto, noFactura) {
 
     r = await api('POST', `/pedidos/${A}/facturas`, { noContrarecibo: 'CR-2', fecha: hoy, cuentaPorPagar: 'CXP-2', monto: 26000 });
     const C2 = r.facturaId;
-    check(r.ok && r.pedido.facturas.length === 2 && r.pedido.estatus === 'reduccion', 'segundo contrarrecibo 26,000 (el contrato vuelve al mínimo de etapas)');
+    check(r.ok && r.pedido.facturas.length === 2 && r.pedido.estatus === 'factura_recibida', 'segundo contrarrecibo 26,000 (el contrato vuelve al mínimo de etapas)');
     r = await completar(A, C2, 26000, 'F-2');
     check(r.ok && r.pedido.estatus === 'pagado', 'con todo cubierto y pagado el contrato queda PAGADO');
 
@@ -129,9 +129,13 @@ async function completar(P, fid, monto, noFactura) {
     r = await api('POST', `/pedidos/${B}/facturas`, { noContrarecibo: 'B-1', fecha: hoy, cuentaPorPagar: 'C', monto: 1000 });
     const B2 = r.facturaId;
     r = await api('PUT', `/pedidos/${B}/omitir/reduccion`);
-    check(r.ok && r.pedido.estatus === 'reduccion', 'omite reducción');
+    check(r.status === 400, 'la reducción ya no es un paso que se omite');
     r = await completar(B, B2, 1000, 'FB-1');
-    check(r.ok && r.pedido.estatus === 'pagado', 'un solo contrarrecibo por el total → PAGADO');
+    check(r.ok && r.pedido.estatus === 'pagado', 'un solo contrarrecibo por el total → PAGADO (sin reducción)');
+    r = await api('PUT', `/pedidos/${B}/reduccion`, { montoEjercido: 1000, fecha: hoy });
+    check(r.ok && r.pedido.reduccion && r.pedido.estatus === 'pagado', 'reducción líquida registrada al final, ya pagado');
+    r = await api('PUT', `/pedidos/${B}/reduccion`, { montoEjercido: 1000.5, fecha: hoy });
+    check(r.status === 400, 'la reducción no supera el autorizado al corregirla');
 
     r = await api('GET', '/pedidos');
     const a = r.pedidos.find(p => p.id === A);

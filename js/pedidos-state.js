@@ -6,7 +6,7 @@
 
 const ORDEN_PASOS_PEDIDO = [
   'pedido_creado', 'oficio_autorizado', 'adecuacion',
-  'factura_recibida', 'reduccion',
+  'factura_recibida',
   'en_contabilidad', 'en_pago', 'pagado'
 ];
 

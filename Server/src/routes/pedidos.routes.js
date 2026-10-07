@@ -25,7 +25,7 @@ router.use(requiereAutenticacion);
 
 const ORDEN_ESTATUS = [
   'pedido_creado', 'oficio_autorizado', 'adecuacion',
-  'factura_recibida', 'reduccion',
+  'factura_recibida',
   'en_contabilidad', 'en_pago', 'pagado'
 ];
 
@@ -314,19 +314,38 @@ const PASOS = {
     leer: b => ({ oficio_folio: texto(b.folio), oficio_monto: num(b.monto), oficio_fecha: fecha(b.fecha) }),
     validar: d => !d.oficio_folio ? 'Falta el folio del oficio' : !(d.oficio_monto > 0) ? 'El monto debe ser mayor a 0' : !d.oficio_fecha ? 'Falta la fecha del oficio' : null
   },
-  'reduccion': {
-    de: 'factura_recibida', a: 'reduccion', opcional: true, nombre: 'la reducción',
-    leer: b => ({ reduccion_monto: num(b.montoEjercido), reduccion_fecha: fecha(b.fecha) || new Date().toISOString().slice(0, 10) }),
-    validar: async (d, id, row) => {
-      if (!(d.reduccion_monto > 0)) return 'Indica cuánto se gastó (mayor a 0)';
-      const aut = await autorizadoVigente(id, row);
-      if (aut !== null && d.reduccion_monto > aut + 0.005) return 'Lo gastado no puede ser mayor al monto autorizado vigente';
-      const cr = await totalContrarecibos(id);
-      if (d.reduccion_monto < cr - 0.005) return 'Lo gastado no puede ser menor a lo ya registrado en contrarrecibos (' + cr.toFixed(2) + ')';
-      return null;
-    }
-  },
 };
+
+// Reducción líquida: no es un paso del flujo. Se registra (o corrige) en cualquier
+// momento después del oficio de autorización, normalmente al final, ya pagado todo.
+// Reemplaza el autorizado vigente; no puede ser menor a lo amparado en contrarrecibos.
+router.put('/:id/reduccion', async (req, res) => {
+  const id = Number(req.params.id);
+  const b = req.body || {};
+  const monto = num(b.montoEjercido), f = fecha(b.fecha) || new Date().toISOString().slice(0, 10);
+  try {
+    const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
+    const row = rows[0];
+    if (ORDEN_ESTATUS.indexOf(row.estatus) < ORDEN_ESTATUS.indexOf('oficio_autorizado')) {
+      return res.status(409).json({ ok: false, mensaje: 'Primero registra el oficio de autorización.' });
+    }
+    if (!(monto > 0)) return res.status(400).json({ ok: false, mensaje: 'Indica cuánto se gastó (mayor a 0)' });
+    // Tope: el autorizado sin contar la reducción (así también se puede corregir)
+    const aut = await autorizadoVigente(id, { ...row, reduccion_monto: null });
+    if (aut !== null && monto > aut + 0.005) return res.status(400).json({ ok: false, mensaje: 'Lo gastado no puede ser mayor al monto autorizado (' + aut.toFixed(2) + ')' });
+    const cr = await totalContrarecibos(id);
+    if (monto < cr - 0.005) return res.status(400).json({ ok: false, mensaje: 'Lo gastado no puede ser menor a lo ya registrado en contrarrecibos (' + cr.toFixed(2) + ')' });
+    await db.query('UPDATE pedidos SET reduccion_monto=$1, reduccion_fecha=$2, actualizado_en=now() WHERE id=$3', [monto, f, id]);
+    await recalcularEstatus(id);
+    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    console.error('Error en PUT /reduccion:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al registrar la reducción' });
+  }
+});
+
+for (const [ruta, paso] of Object.entries(PASOS)) {};
 
 for (const [ruta, paso] of Object.entries(PASOS)) {
   router.put('/:id/' + ruta, async (req, res) => {
@@ -381,10 +400,10 @@ async function recalcularEstatus(id) {
   const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
   if (!rows.length) return;
   const row = rows[0];
-  // Antes de terminar (u omitir) la reducción, el contrato sigue en "contrarrecibos"
-  if (ORDEN_ESTATUS.indexOf(row.estatus) < ORDEN_ESTATUS.indexOf('reduccion')) return;
+  // Antes del primer contrarrecibo no hay nada que recalcular
+  if (ORDEN_ESTATUS.indexOf(row.estatus) < ORDEN_ESTATUS.indexOf('factura_recibida')) return;
   const { rows: crs } = await db.query('SELECT * FROM pedido_facturas WHERE pedido_id=$1', [id]);
-  let nuevo = 'reduccion', fechaPagado = null;
+  let nuevo = 'factura_recibida', fechaPagado = null;
   if (crs.length) {
     const minima = Math.min(...crs.map(etapaCR));
     const disp = await montoDisponible(id, row);
@@ -609,5 +628,15 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ ok: false, mensaje: 'Error al eliminar el pedido' });
   }
 });
+
+// Al arrancar: los contratos que estaban en el antiguo paso "reducción" vuelven al
+// flujo de contrarrecibos y se recalcula su estatus
+(async () => {
+  try {
+    await db.query("UPDATE pedidos SET estatus='factura_recibida' WHERE estatus='reduccion'");
+    const { rows } = await db.query("SELECT id FROM pedidos WHERE estatus IN ('factura_recibida','en_contabilidad','en_pago','pagado')");
+    for (const r of rows) await recalcularEstatus(r.id);
+  } catch (e) { console.error('Recalcular estatus al arrancar:', e.message); }
+})();
 
 module.exports = router;

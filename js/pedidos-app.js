@@ -186,7 +186,7 @@ function adjuntarEventosPedidos() {
         } else {
           await StorePedidos.registrarPaso(id, form.dataset.accion, cuerpo);
         }
-        let aviso = form.dataset.accion === 'contrarecibo-nuevo' ? 'Contrarrecibo registrado.' : 'Paso registrado.', error = false;
+        let aviso = form.dataset.accion === 'contrarecibo-nuevo' ? 'Contrarrecibo registrado.' : form.dataset.accion === 'reduccion' ? 'Reducción líquida guardada.' : 'Paso registrado.', error = false;
         if (doc && rutaDoc) {
           try { await StorePedidos.subirDocumento(id, rutaDoc, doc); aviso = aviso.replace('.', ' con su documento.'); }
           catch (err) { aviso = 'Paso registrado, pero el documento no se subió: ' + err.message + ' Súbelo desde el detalle.'; error = true; }

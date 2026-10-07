@@ -20,7 +20,6 @@ const PASOS_PEDIDO = [
   { clave: 'oficio_autorizado', label: 'Oficio de autorización',   corto: 'Autorización',   icono: 'ti-file-certificate' },
   { clave: 'adecuacion',        label: 'Oficio de adecuación',     corto: 'Adecuación',     icono: 'ti-adjustments-dollar', opcional: true },
   { clave: 'factura_recibida',  label: 'Contrarrecibos',           corto: 'Contrarrecibos', icono: 'ti-receipt-2' },
-  { clave: 'reduccion',         label: 'Reducción líquida',        corto: 'Reducción',      icono: 'ti-arrow-down-circle', opcional: true },
   { clave: 'en_contabilidad',   label: 'Contabilidad',             corto: 'Contabilidad',   icono: 'ti-calculator' },
   { clave: 'en_pago',           label: 'Proceso de pago',          corto: 'En pago',        icono: 'ti-cash' },
   { clave: 'pagado',            label: 'Pagado',                   corto: 'Pagado',         icono: 'ti-circle-check' }
@@ -31,8 +30,7 @@ const SIGUIENTE_PASO = {
   pedido_creado: 'Registrar el oficio de autorización',
   oficio_autorizado: 'Oficio de adecuación (opcional)',
   adecuacion: 'Registrar el primer contrarrecibo',
-  factura_recibida: 'Reducción líquida (opcional)',
-  reduccion: 'Seguimiento de cada contrarrecibo',
+  factura_recibida: 'Seguimiento de cada contrarrecibo',
   en_contabilidad: 'Seguimiento de cada contrarrecibo',
   en_pago: 'Registrar los pagos de los contrarrecibos'
 };
@@ -45,7 +43,6 @@ function indicePaso(estatus) {
 function pasoOmitido(p, clave) {
   if (indicePaso(p.estatus) < indicePaso(clave)) return false;
   if (clave === 'adecuacion') return !p.oficio;
-  if (clave === 'reduccion') return !p.reduccion;
   return false;
 }
 
@@ -285,10 +282,10 @@ const RECORRIDO = [
   { clave: 'cr',           label: 'Contrarrecibos',         icono: 'ti-receipt-2', etapa: 0, falta: 'faltan contrarrecibos' },
   { clave: 'factura',      label: 'Factura',                icono: 'ti-receipt', etapa: 1, falta: 'faltan facturas' },
   { clave: 'entrega',      label: 'Entrega',                icono: 'ti-truck-delivery', etapa: 2, falta: 'faltan entregas' },
-  { clave: 'reduccion',    label: 'Reducción líquida',      icono: 'ti-arrow-down-circle', opcional: true },
   { clave: 'contab',       label: 'Contabilidad',           icono: 'ti-calculator', etapa: 3, falta: 'faltan oficios' },
   { clave: 'comprobante',  label: 'Comprobante de pago',    icono: 'ti-cash', etapa: 4, falta: 'faltan comprobantes' },
-  { clave: 'pagado',       label: 'Pagado',                 icono: 'ti-circle-check' }
+  { clave: 'pagado',       label: 'Pagado',                 icono: 'ti-circle-check' },
+  { clave: 'reduccion',    label: 'Reducción líquida',      icono: 'ti-arrow-down-circle', opcional: true }
 ];
 
 function renderRecorrido(p, idxActual, m) {
@@ -300,7 +297,7 @@ function renderRecorrido(p, idxActual, m) {
     if (paso.clave === 'contrato') return 'hecho';
     if (paso.clave === 'autorizacion') return idxActual >= indicePaso('oficio_autorizado') ? 'hecho' : 'siguiente';
     if (paso.clave === 'adecuacion') return pasoOmitido(p, 'adecuacion') ? 'omitido' : p.oficio ? 'hecho' : 'siguiente';
-    if (paso.clave === 'reduccion') return pasoOmitido(p, 'reduccion') ? 'omitido' : p.reduccion ? 'hecho' : 'siguiente';
+    if (paso.clave === 'reduccion') return p.reduccion ? 'hecho' : 'opcional';
     if (paso.clave === 'pagado') return p.estatus === 'pagado' ? 'hecho' : 'siguiente';
     if (!conCR) return 'siguiente';
     const atrasados = crs.filter(f => etapaDe(f) < paso.etapa).length;
@@ -308,7 +305,7 @@ function renderRecorrido(p, idxActual, m) {
   });
   // El primero sin hacer (ni omitido ni con faltantes) es el actual
   const iActual = estados.indexOf('siguiente');
-  const final = estados.map((e, i) => e === 'siguiente' ? (i === iActual ? 'actual' : 'pendiente') : e);
+  const final = estados.map((e, i) => e === 'siguiente' ? (i === iActual ? 'actual' : 'pendiente') : e === 'opcional' ? 'pendiente' : e);
   const ultimo = final.reduce((u, e, i) => (e === 'hecho' || e === 'faltan' || e === 'omitido') ? i : u, 0);
   const n = RECORRIDO.length;
   return `
@@ -430,8 +427,10 @@ function renderCuerpoPedido(p) {
     </details>`;
   }
 
+  const accionReduccion = idxActual >= indicePaso('oficio_autorizado') ? renderReduccion(p) : '';
   const acciones = `
     <div class="tc-acciones">
+      ${accionReduccion}
       <button type="button" class="btn btn-secundario btn-sm" data-editar-pedido="${p.id}"><i class="ti ti-pencil"></i> Editar datos</button>
       <button type="button" class="btn btn-texto btn-sm" data-eliminar-pedido="${p.id}"><i class="ti ti-trash"></i> Eliminar contrato</button>
     </div>`;
@@ -478,6 +477,37 @@ function bloqueDocumento(p, titulo, archivo, ruta, textoSubir) {
       <i class="ti ti-file-upload"></i><span>${titulo}</span><small>Subir</small>
       <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}" hidden>
     </label>`;
+}
+
+// ---------- Reducción líquida (opcional, en cualquier momento) ----------
+function renderReduccion(p) {
+  const m = montosDelContrato(p);
+  const valor = v => v === null || v === undefined ? '' : Number(v).toFixed(2);
+  const tope = p.reduccion ? m.autorizadoPrevio : m.autorizado;
+  const sugerido = p.reduccion ? p.reduccion.montoEjercido : (m.facturado || m.contrarecibos);
+  const hoy = new Date().toISOString().slice(0, 10);
+  return `
+    <button type="button" class="btn btn-secundario btn-sm" data-abrir-cr="reduccion-${p.id}"><i class="ti ti-arrow-down-circle"></i> ${p.reduccion ? 'Corregir reducción líquida' : 'Reducción líquida'}</button>
+    <div class="fi-oficio" id="reduccion-${p.id}" hidden>
+      <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="reduccion" data-doc="documento-reduccion">
+        <div class="fi-oficio-titulo">Reducción líquida</div>
+        <p class="ppa-ayuda">Opcional. Normalmente se registra al final, cuando ya está todo pagado. Reemplaza el autorizado (${fmtMoneda.format(tope || 0)}) por lo que realmente se ocupó; no puede ser menor a lo amparado en contrarrecibos (${fmtMoneda.format(m.contrarecibos)}).</p>
+        <div class="fila-formulario">
+          <label>¿Cuánto se gastó? (nuevo autorizado)
+            <input type="number" name="montoEjercido" step="0.01" min="${valor(Math.max(0.01, m.contrarecibos))}" max="${valor(tope)}" value="${valor(sugerido)}" data-autorizado="${valor(tope)}" data-facturado="${valor(m.contrarecibos)}" required>
+          </label>
+          <label>Fecha
+            <input type="date" name="fecha" value="${p.reduccion ? p.reduccion.fecha : hoy}" required>
+          </label>
+        </div>
+        <p class="calculo-reduccion" data-calculo-reduccion>${tope !== null ? `Reducción: ${fmtMoneda.format(tope - sugerido)} · el contrato queda en ${fmtMoneda.format(sugerido)}` : ''}</p>
+        ${campoDocumento('Adjuntar el documento de la reducción (opcional)')}
+        <div class="ppa-botones">
+          <button type="submit" class="btn btn-primario btn-sm">Guardar reducción <i class="ti ti-arrow-right"></i></button>
+          <button type="button" class="btn btn-texto btn-sm" data-abrir-cr="reduccion-${p.id}">Cancelar</button>
+        </div>
+      </form>
+    </div>`;
 }
 
 // ---------- Panel del paso que sigue ----------
@@ -562,19 +592,7 @@ function renderPanelAccionPedido(p, idxActual) {
       });
 
     case 'factura_recibida':
-      return panel({
-        titulo: 'Reducción líquida', ruta: 'reduccion', doc: 'documento-reduccion', boton: 'Registrar reducción líquida', opcional: true,
-        ayuda: `La reducción líquida reemplaza el autorizado vigente (hoy ${fmtMoneda.format(m.autorizado)}) por lo que realmente se ocupó. No puede ser menor a lo ya amparado en contrarrecibos (${fmtMoneda.format(m.contrarecibos)}). Las ampliaciones o cancelaciones que se registren después se aplicarán sobre este nuevo monto.`,
-        campos: `
-          <label>¿Cuánto se gastó del total autorizado? (nuevo autorizado)
-            <input type="number" name="montoEjercido" step="0.01" min="${valor(Math.max(0.01, m.contrarecibos))}" max="${valor(m.autorizado)}" value="${valor(m.contrarecibos)}" data-autorizado="${valor(m.autorizado)}" data-facturado="${valor(m.contrarecibos)}" required>
-          </label>
-          <p class="calculo-reduccion" data-calculo-reduccion>${m.autorizado !== null ? `Reducción: ${fmtMoneda.format(m.autorizado - m.contrarecibos)} · el contrato queda en ${fmtMoneda.format(m.contrarecibos)}` : ''}</p>
-          ${campoDocumento('Adjuntar el documento de la reducción (opcional)')}`
-      });
-
-    case 'reduccion':
-    case 'en_contabilidad':
+    case 'en_contabilidad':    case 'en_contabilidad':
     case 'en_pago': {
       const fs = p.facturas || [];
       const cuenta = e => fs.filter(f => f.estado === e).length;
