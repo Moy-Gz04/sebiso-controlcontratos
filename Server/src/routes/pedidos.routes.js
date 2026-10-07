@@ -59,6 +59,7 @@ function facturaAJson(f, archivos) {
 function pedidoAJson(row, oficios, archivos = [], facturas = []) {
   return {
     id: row.id,
+    noContrato: row.no_contrato,
     producto: row.producto,
     cantidad: Number(row.cantidad),
     unidadMedida: row.unidad_medida,
@@ -127,15 +128,15 @@ router.get('/', async (req, res) => {
 // ---------- Paso 1: crear pedido ----------
 
 router.post('/', async (req, res) => {
-  const { producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud } = req.body;
+  const { noContrato, producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud } = req.body;
   if (!producto || cantidad === undefined || !fechaSolicitud) {
     return res.status(400).json({ ok: false, mensaje: 'Faltan datos del pedido (producto, cantidad, fecha)' });
   }
   try {
     const { rows } = await db.query(
-      `INSERT INTO pedidos (producto, cantidad, unidad_medida, descripcion, proveedor, area_solicitante, monto_estimado, fecha_solicitud)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud]
+      `INSERT INTO pedidos (producto, cantidad, unidad_medida, descripcion, proveedor, area_solicitante, monto_estimado, fecha_solicitud, no_contrato)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud, (noContrato || '').trim() || null]
     );
     const pedido = await cargarPedidoCompleto(rows[0].id);
     res.status(201).json({ ok: true, pedido });
@@ -252,13 +253,13 @@ router.get('/:id/documento-:tipo', (req, res) => {
 
 router.put('/:id/datos', async (req, res) => {
   const id = Number(req.params.id);
-  const { producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud } = req.body;
+  const { noContrato, producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud } = req.body;
   try {
     const { rows } = await db.query(
       `UPDATE pedidos SET producto=$1, cantidad=$2, unidad_medida=$3, descripcion=$4, proveedor=$5,
-         area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8
+         area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8, no_contrato=$10
        WHERE id=$9 RETURNING id`,
-      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud, id]
+      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud, id, (noContrato || '').trim() || null]
     );
     if (rows.length === 0) return res.status(404).json({ ok: false, mensaje: 'Pedido no encontrado' });
     const pedido = await cargarPedidoCompleto(id);
@@ -651,9 +652,9 @@ router.put('/:id/editar-todo', async (req, res) => {
       const d = b.datos;
       await client.query(
         `UPDATE pedidos SET producto=$1, cantidad=$2, unidad_medida=$3, descripcion=$4, proveedor=$5,
-           area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8 WHERE id=$9`,
+           area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8, no_contrato=$10 WHERE id=$9`,
         [reqTexto(d.producto, 'el nombre del contrato (Datos del contrato)'), num(d.cantidad) || 1, texto(d.unidadMedida), texto(d.descripcion),
-         texto(d.proveedor), texto(d.areaSolicitante), num(d.montoEstimado) || 0, reqFecha(d.fechaSolicitud, 'Datos del contrato'), id]);
+         texto(d.proveedor), texto(d.areaSolicitante), num(d.montoEstimado) || 0, reqFecha(d.fechaSolicitud, 'Datos del contrato'), id, texto(d.noContrato)]);
     }
     if (b.autorizacion && row.aut_folio) {
       const a = b.autorizacion;

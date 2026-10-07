@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-<link rel="stylesheet" href="css/estilos.css?v=20261007g">
+<link rel="stylesheet" href="css/estilos.css?v=20261007h">
 </head>
 <body>
 
@@ -123,7 +123,7 @@
         <div class="barra-filtros">
           <div class="buscador">
             <i class="ti ti-search"></i>
-            <input type="search" id="buscador-pedidos" placeholder="Buscar por producto, proveedor o área…" aria-label="Buscar contratos">
+            <input type="search" id="buscador-pedidos" placeholder="Buscar por No. de contrato (594/2025), producto, proveedor o área…" aria-label="Buscar contratos">
           </div>
           <div class="filtro-etapas" id="filtro-etapas" role="group" aria-label="Filtrar por etapa"></div>
         </div>
@@ -146,6 +146,9 @@
     <h2>Nuevo contrato</h2>
     <p class="modal-subtitulo">Datos generales del contrato. Sirve para cualquier tipo de bien o servicio (garrafones, papelería, mobiliario, etc.).</p>
     <form id="form-nuevo-pedido">
+      <label>No. de contrato
+        <input type="text" name="noContrato" placeholder="Ej. 594/2025">
+      </label>
       <div class="fila-formulario">
         <label>Producto o servicio
           <input type="text" name="producto" placeholder="Ej. Garrafones de agua" required>
@@ -203,6 +206,9 @@
         <label>Producto o servicio
           <input type="text" name="producto" required>
         </label>
+        <label>No. de contrato
+          <input type="text" name="noContrato" placeholder="Ej. 594/2025">
+        </label>
         <label>Cantidad
           <input type="number" name="cantidad" step="0.01" min="0" required>
         </label>
@@ -252,16 +258,16 @@
 <!-- Aviso flotante -->
 <div id="aviso-flotante"></div>
 
-<script src="js/config.js?v=20261007g"></script>
-<script src="js/state.js?v=20261007g"></script>
-<script src="js/pedidos-state.js?v=20261007g"></script>
-<script src="js/render.js?v=20261007g"></script>
-<script src="js/pedidos-render.js?v=20261007g"></script>
-<script src="js/modals.js?v=20261007g"></script>
-<script src="js/pedidos-modals.js?v=20261007g"></script>
-<script src="js/app.js?v=20261007g"></script>
-<script src="js/pedidos-app.js?v=20261007g"></script>
-<script src="js/lluvia.js?v=20261007g"></script>
-<script src="js/montos-input.js?v=20261007g"></script>
+<script src="js/config.js?v=20261007h"></script>
+<script src="js/state.js?v=20261007h"></script>
+<script src="js/pedidos-state.js?v=20261007h"></script>
+<script src="js/render.js?v=20261007h"></script>
+<script src="js/pedidos-render.js?v=20261007h"></script>
+<script src="js/modals.js?v=20261007h"></script>
+<script src="js/pedidos-modals.js?v=20261007h"></script>
+<script src="js/app.js?v=20261007h"></script>
+<script src="js/pedidos-app.js?v=20261007h"></script>
+<script src="js/lluvia.js?v=20261007h"></script>
+<script src="js/montos-input.js?v=20261007h"></script>
 </body>
 </html>

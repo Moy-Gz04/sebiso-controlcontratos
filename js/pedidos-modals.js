@@ -8,6 +8,7 @@
 
 function leerDatosPedidoDeFormulario(form) {
   return {
+    noContrato: form.noContrato ? form.noContrato.value.trim() : '',
     producto: form.producto.value.trim(),
     cantidad: Number(form.cantidad.value),
     unidadMedida: form.unidadMedida.value.trim(),

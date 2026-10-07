@@ -178,3 +178,6 @@ ALTER TABLE pedido_facturas ALTER COLUMN no_factura DROP NOT NULL;
 ALTER TABLE pedido_facturas ALTER COLUMN fecha DROP NOT NULL;
 ALTER TABLE pedido_facturas ALTER COLUMN descripcion DROP NOT NULL;
 ALTER TABLE pedido_facturas ALTER COLUMN monto DROP NOT NULL;
+
+-- Número del contrato (p. ej. 594/2025), para buscarlo fácil
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS no_contrato TEXT;

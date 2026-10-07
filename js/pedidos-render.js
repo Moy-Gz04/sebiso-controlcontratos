@@ -172,6 +172,8 @@ function aplicarFiltrosPedidos() {
   let lista = pedidosCache;
   if (texto) {
     lista = lista.filter(p =>
+      (p.noContrato || '').toLowerCase().includes(texto) ||
+      (p.noContrato || '').replace(/\D/g, '').includes(texto.replace(/\D/g, '') || '\u0000') ||
       p.producto.toLowerCase().includes(texto) ||
       (p.proveedor || '').toLowerCase().includes(texto) ||
       (p.areaSolicitante || '').toLowerCase().includes(texto)
@@ -215,7 +217,7 @@ function renderTarjetaPedido(p, i) {
       <button type="button" class="tc-cabecera" data-toggle-pedido="${p.id}" aria-expanded="${abierta}" aria-controls="cuerpo-pedido-${p.id}">
         <span class="tc-icono"><i class="ti ${paso.icono}"></i></span>
         <span class="tc-principal">
-          <span class="tc-titulo">${escaparHtml(p.producto)}</span>
+          <span class="tc-titulo">${p.noContrato ? `<span class="tc-no-contrato">No. ${escaparHtml(p.noContrato)}</span>` : ''}${escaparHtml(p.producto)}</span>
           <span class="tc-meta">
             <span><i class="ti ti-package"></i>${escaparHtml(p.cantidad)} ${escaparHtml(p.unidadMedida || '')}</span>
             <span><i class="ti ti-building-store"></i>${escaparHtml(p.proveedor || 'Sin proveedor')}</span>
@@ -520,7 +522,7 @@ function renderEditarTodo(p) {
   const fila = (...campos) => `<div class="ed-fila">${campos.join('')}</div>`;
   const partes = [];
   partes.push(sec('ti-file-description', 'Datos del contrato', '', `
-    ${fila(t('datos.producto', 'Contrato / producto', p.producto))}
+    ${fila(t('datos.noContrato', 'No. de contrato', p.noContrato, false), t('datos.producto', 'Producto o servicio', p.producto))}
     ${fila(t('datos.proveedor', 'Proveedor', p.proveedor, false), t('datos.areaSolicitante', 'Área solicitante', p.areaSolicitante, false))}
     ${fila(`<label>Cantidad<input type="number" name="datos.cantidad" step="any" min="0" value="${v(p.cantidad)}" required></label>`, t('datos.unidadMedida', 'Unidad', p.unidadMedida, false), mo('datos.montoEstimado', 'Monto contratado', p.montoEstimado), fe('datos.fechaSolicitud', 'Fecha del contrato', p.fechaSolicitud))}
     <label>Descripción<textarea name="datos.descripcion" rows="3">${v(p.descripcion)}</textarea></label>`));
@@ -833,7 +835,7 @@ function renderFacturas(p, idxActual) {
     const detalle = `
       <div class="fi-oficio" id="cr-det-${f.id}" hidden>
         <div class="fi-oficio-titulo">Contrarrecibo ${escaparHtml(cr.noContrarecibo || '')}</div>
-        <p class="hist-sub">${escaparHtml(p.producto)}</p>
+        <p class="hist-sub">${p.noContrato ? 'Contrato ' + escaparHtml(p.noContrato) + ' · ' : ''}${escaparHtml(p.producto)}</p>
         <div class="det-resumen">
           <div><small>Monto</small><b>${fmtMoneda.format(cr.monto || 0)}</b></div>
           <div><small>Estado</small><b>${f.estado === 'pagada' ? 'Pagado' : (ETAPAS_CR[idxE] ? ETAPAS_CR[idxE].texto : '')}</b></div>

@@ -1148,3 +1148,6 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 
 /* Botones de documento de la ventana de detalle: todos del mismo tamaño */
 .det-cab .btn-xs, .det-cab .det-sin-doc { width: 172px; justify-content: center; box-sizing: border-box; }
+
+/* No. de contrato junto al título de la tarjeta */
+.tc-no-contrato { display: inline-flex; align-items: center; margin-right: 8px; padding: 2px 8px; border-radius: 6px; background: var(--guinda); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .3px; font-variant-numeric: tabular-nums; vertical-align: 2px; white-space: nowrap; }

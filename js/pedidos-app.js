@@ -66,6 +66,7 @@ function adjuntarEventosPedidos() {
       const form = document.getElementById('form-editar-pedido');
       form.dataset.pedidoId = id;
       form.producto.value = p.producto;
+      if (form.noContrato) form.noContrato.value = p.noContrato || '';
       form.cantidad.value = p.cantidad;
       form.unidadMedida.value = p.unidadMedida || '';
       form.proveedor.value = p.proveedor || '';
