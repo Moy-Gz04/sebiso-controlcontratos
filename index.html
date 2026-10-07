@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-<link rel="stylesheet" href="css/estilos.css?v=20261007u">
+<link rel="stylesheet" href="css/estilos.css?v=20261007v">
 </head>
 <body>
 
@@ -18,6 +18,12 @@
 <div id="pantalla-login" class="pantalla">
   <!-- Lluvia de flores de cempasúchil, igual que el login de Correspondencia (js/lluvia.js) -->
   <div class="lluvia-flores" id="lluvia-flores"></div>
+  <!-- Fondo espacial: estrellas, anillos de luz y un eclipse (estilo del login de referencia) -->
+  <div class="login-espacio" aria-hidden="true">
+    <canvas id="login-estrellas"></canvas>
+    <span class="anillo a1"></span><span class="anillo a2"></span><span class="anillo a3"></span>
+    <span class="eclipse"></span>
+  </div>
 
   <div class="login-wrap">
     <div class="login-halo"></div>
@@ -260,17 +266,18 @@
 <!-- Aviso flotante -->
 <div id="aviso-flotante"></div>
 
-<script src="js/config.js?v=20261007u"></script>
-<script src="js/state.js?v=20261007u"></script>
-<script src="js/pedidos-state.js?v=20261007u"></script>
-<script src="js/render.js?v=20261007u"></script>
-<script src="js/pedidos-render.js?v=20261007u"></script>
-<script src="js/modals.js?v=20261007u"></script>
-<script src="js/pedidos-modals.js?v=20261007u"></script>
-<script src="js/app.js?v=20261007u"></script>
-<script src="js/pedidos-app.js?v=20261007u"></script>
-<script src="js/arrastrar-archivos.js?v=20261007u"></script>
-<script src="js/lluvia.js?v=20261007u"></script>
-<script src="js/montos-input.js?v=20261007u"></script>
+<script src="js/config.js?v=20261007v"></script>
+<script src="js/state.js?v=20261007v"></script>
+<script src="js/pedidos-state.js?v=20261007v"></script>
+<script src="js/render.js?v=20261007v"></script>
+<script src="js/pedidos-render.js?v=20261007v"></script>
+<script src="js/modals.js?v=20261007v"></script>
+<script src="js/pedidos-modals.js?v=20261007v"></script>
+<script src="js/app.js?v=20261007v"></script>
+<script src="js/pedidos-app.js?v=20261007v"></script>
+<script src="js/arrastrar-archivos.js?v=20261007v"></script>
+<script src="js/lluvia.js?v=20261007v"></script>
+<script src="js/login-espacio.js?v=20261007v"></script>
+<script src="js/montos-input.js?v=20261007v"></script>
 </body>
 </html>

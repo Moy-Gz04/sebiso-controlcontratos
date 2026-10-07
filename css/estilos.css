@@ -1204,3 +1204,97 @@ body { position: relative; isolation: isolate; }
   .brand-text .t1-full { font-size: 17px; }
   .navbar-menu { padding: 0 16px; }
 }
+
+/* ======================================================
+   LOGIN "ECLIPSE": cielo nocturno con estrellas, anillos de luz dorada
+   y una tarjeta circular guinda con halo, como la imagen de referencia.
+   Todo acotado a #pantalla-login.
+   ====================================================== */
+#pantalla-login {
+  background:
+    radial-gradient(circle at 50% 46%, rgba(120, 22, 52, .35) 0%, rgba(120, 22, 52, 0) 38%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, #1a1520 0%, #0d0c13 55%, #07070b 100%);
+}
+#pantalla-login .lluvia-flores { display: none; }
+#pantalla-login .login-espacio { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+#login-estrellas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#pantalla-login .anillo {
+  position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%, -50%);
+  border: 1px solid rgba(214, 180, 110, .16);
+  box-shadow: 0 0 40px rgba(214, 180, 110, .07), inset 0 0 40px rgba(214, 180, 110, .05);
+}
+#pantalla-login .anillo.a1 { width: min(860px, 150vw); height: min(860px, 150vw); }
+#pantalla-login .anillo.a2 { width: min(1080px, 190vw); height: min(1080px, 190vw); border-color: rgba(214, 180, 110, .10); }
+#pantalla-login .anillo.a3 { width: min(1400px, 240vw); height: min(1400px, 240vw); border-color: rgba(214, 180, 110, .06); }
+#pantalla-login .eclipse {
+  position: absolute; top: calc(50% - min(330px, 46vw)); left: calc(50% + min(250px, 30vw)); width: 160px; height: 160px; border-radius: 50%;
+  background: radial-gradient(circle at 42% 40%, #15131a 0%, #0a090d 70%);
+  box-shadow: 0 0 0 1px rgba(214, 180, 110, .3), -8px 6px 26px rgba(214, 180, 110, .38), 0 0 70px rgba(214, 180, 110, .12);
+}
+
+/* Tarjeta circular */
+#pantalla-login .login-halo {
+  width: min(820px, 98vw); height: min(820px, 98vw);
+  background: radial-gradient(circle, rgba(200, 160, 90, .22) 38%, rgba(200, 160, 90, .06) 52%, rgba(200, 160, 90, 0) 66%);
+}
+#pantalla-login .login-card {
+  width: min(680px, 94vw); max-width: none; aspect-ratio: 1 / 1; border-radius: 50%;
+  padding: 48px 24px 36px; align-items: center;
+  display: flex; flex-direction: column; justify-content: center;
+  background: radial-gradient(circle at 50% 42%, #6E1530 0%, #5A0E26 45%, #460A1D 72%, #3A0818 100%);
+  box-shadow:
+    0 0 0 1px rgba(214, 180, 110, .35),
+    0 0 0 14px rgba(110, 21, 48, .35),
+    0 0 0 15px rgba(214, 180, 110, .18),
+    0 0 80px rgba(214, 180, 110, .28),
+    0 30px 80px rgba(0, 0, 0, .55),
+    inset 0 0 60px rgba(0, 0, 0, .35);
+}
+#pantalla-login .login-card::before {
+  content: ""; position: absolute; inset: 7%; border-radius: 50%; pointer-events: none;
+  border: 1px solid rgba(214, 180, 110, .12);
+}
+#pantalla-login .login-card > * { position: relative; width: 100%; max-width: 380px; }
+
+/* Medallón del emblema */
+#pantalla-login .escudo-placeholder {
+  width: 84px; height: 84px; border-radius: 50%; margin-bottom: 10px;
+  background: radial-gradient(circle at 50% 40%, #6E1530, #3A0818);
+  border: 2px solid rgba(214, 180, 110, .75);
+  box-shadow: 0 0 0 4px rgba(58, 8, 24, .9), 0 0 0 5px rgba(214, 180, 110, .35), 0 0 30px rgba(214, 180, 110, .35);
+  padding: 12px;
+}
+#pantalla-login .escudo-placeholder img { object-fit: contain; border-radius: 0; }
+#pantalla-login .login-gov { color: #D9BFA6; }
+#pantalla-login .login-secretaria { font-size: 17px; color: #FBEFE6; }
+#pantalla-login .login-titulo { font-size: 26px; color: #D4AE5A; }
+#pantalla-login .login-body { gap: 14px; margin-top: 22px; }
+
+/* Campos con contorno dorado */
+#pantalla-login .campo-input-wrap {
+  background: rgba(40, 6, 18, .35);
+  border: 1.5px solid rgba(214, 180, 110, .7);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, .35);
+}
+#pantalla-login .campo-input-wrap:focus-within {
+  border-color: #E2C278;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, .35), 0 0 0 3px rgba(214, 180, 110, .18);
+}
+#pantalla-login .neu-toggle input:checked + .neu-toggle-track { background: linear-gradient(135deg, #C8A951, #9a7d30); }
+#pantalla-login .btn-login {
+  background: linear-gradient(180deg, #D8B866 0%, #B8933F 55%, #9C7A2E 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 240, 200, .45);
+}
+#pantalla-login .login-pie { color: #C9A7B0; }
+
+/* Pantallas bajas o angostas: la tarjeta vuelve a ser rectangular */
+@media (max-width: 620px), (max-height: 700px) {
+  #pantalla-login .login-card {
+    width: 100%; max-width: 420px; aspect-ratio: auto; border-radius: 36px; padding: 40px 30px 30px;
+  }
+  #pantalla-login .login-card::before { inset: 10px; border-radius: 28px; }
+  #pantalla-login .eclipse { display: none; }
+}
+@media (max-width: 620px), (max-height: 700px) {
+  #pantalla-login .login-card { box-shadow: 0 0 0 1px rgba(214,180,110,.35), 0 0 60px rgba(214,180,110,.22), 0 24px 60px rgba(0,0,0,.5), inset 0 0 50px rgba(0,0,0,.3); }
+}
