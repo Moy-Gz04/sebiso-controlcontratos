@@ -276,7 +276,7 @@ function renderMontosContrato(p) {
 // con la etiqueta (lo que va antes del primer número o dos puntos) resaltada.
 function renderDescripcion(texto) {
   if (!texto) return '';
-  const partes = String(texto).split(/\s+·\s+|\n+/).map(t => t.trim().replace(/\.$/, '')).filter(Boolean);
+  const partes = String(texto).split(/\s+·\s+|\n+|\.\s+(?=[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+:)/).map(t => t.trim().replace(/\.$/, '')).filter(Boolean);
   if (partes.length < 2) return `<div class="desc-contrato"><p>${escaparHtml(texto)}</p></div>`;
   const item = t => {
     const m = /^([^\d:]{3,40}?)(?::\s*|\s+)(?=[\dA-Z$])(.*)$/.exec(t);
