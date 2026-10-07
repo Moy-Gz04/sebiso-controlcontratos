@@ -44,8 +44,9 @@ function formatearMontoInput(el) {
 
 function prepararCampoMonto(el) {
   if (el.dataset.moneda) return;
-  const esDinero = CAMPOS_MONTO.includes(el.name);
-  if (!esDinero && !CAMPOS_CANTIDAD.includes(el.name)) return;
+  const base = String(el.name || '').split('.').pop();   // "cr.22.factura.monto" → "monto"
+  const esDinero = CAMPOS_MONTO.includes(base);
+  if (!esDinero && !CAMPOS_CANTIDAD.includes(base)) return;
   el.dataset.moneda = esDinero ? '2' : '1';
   // Los límites se conservan para validar al enviar
   if (el.min !== '') el.dataset.min = el.min;

@@ -273,6 +273,33 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  // Editar toda la información: los nombres de los campos dicen dónde va cada dato
+  // ("autorizacion.fecha", "cr.22.factura.monto", "of.5.folio")
+  contenedor.querySelectorAll('.form-editar-todo').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = Number(form.dataset.pedidoId);
+      const boton = form.querySelector('button[type="submit"]');
+      const cuerpo = {}, crs = {}, ofs = {};
+      form.querySelectorAll('input[name], select[name], textarea[name]').forEach(el => {
+        const partes = el.name.split('.');
+        const valor = el.value.trim();
+        if (partes[0] === 'cr') { const c = crs[partes[1]] = crs[partes[1]] || { id: Number(partes[1]) }; (c[partes[2]] = c[partes[2]] || {})[partes[3]] = valor; }
+        else if (partes[0] === 'of') { (ofs[partes[1]] = ofs[partes[1]] || { id: Number(partes[1]) })[partes[2]] = valor; }
+        else (cuerpo[partes[0]] = cuerpo[partes[0]] || {})[partes[1]] = valor;
+      });
+      cuerpo.contrarecibos = Object.values(crs);
+      cuerpo.oficios = Object.values(ofs);
+      try {
+        boton.disabled = true;
+        await StorePedidos.editarTodo(id, cuerpo);
+        tarjetasPedidoExpandidas.add(id);
+        await renderListadoPedidos();
+        mostrarAviso('Cambios guardados.');
+      } catch (err) { boton.disabled = false; mostrarAviso(err.message, true); }
+    });
+  });
+
   // Eliminar un contrarrecibo capturado por error
   contenedor.querySelectorAll('[data-eliminar-factura]').forEach(btn => {
     btn.addEventListener('click', () => {

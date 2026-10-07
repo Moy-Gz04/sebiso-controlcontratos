@@ -456,7 +456,8 @@ function renderCuerpoPedido(p) {
   const acciones = `
     <div class="tc-acciones">
       ${accionReduccion}
-      <button type="button" class="btn btn-secundario btn-sm" data-editar-pedido="${p.id}"><i class="ti ti-pencil"></i> Editar datos</button>
+      <button type="button" class="btn btn-primario btn-sm" data-abrir-cr="editar-${p.id}"><i class="ti ti-pencil"></i> Editar información</button>
+      ${renderEditarTodo(p)}
       <button type="button" class="btn btn-texto btn-sm" data-eliminar-pedido="${p.id}"><i class="ti ti-trash"></i> Eliminar contrato</button>
     </div>`;
 
@@ -502,6 +503,59 @@ function bloqueDocumento(p, titulo, archivo, ruta, textoSubir) {
       <i class="ti ti-file-upload"></i><span>${titulo}</span><small>Subir</small>
       <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}" hidden>
     </label>`;
+}
+
+// ---------- Editar toda la información (ventana por secciones) ----------
+function renderEditarTodo(p) {
+  const v = x => escaparHtml(x === null || x === undefined ? '' : x);
+  const mon = x => x === null || x === undefined ? '' : Number(x).toFixed(2);
+  const t = (n, etq, val, req = true) => `<label>${etq}<input type="text" name="${n}" value="${v(val)}" ${req ? 'required' : ''}></label>`;
+  const fe = (n, etq, val) => `<label>${etq}<input type="date" name="${n}" value="${v(val)}" required></label>`;
+  const mo = (n, etq, val) => `<label>${etq}<input type="number" name="${n}" step="0.01" min="0.01" value="${mon(val)}" required></label>`;
+  const sec = (icono, titulo, sub, cuerpo) => `
+    <fieldset class="ed-seccion">
+      <legend><i class="ti ${icono}"></i> ${titulo}${sub ? `<small>${sub}</small>` : ''}</legend>
+      ${cuerpo}
+    </fieldset>`;
+  const fila = (...campos) => `<div class="ed-fila">${campos.join('')}</div>`;
+  const partes = [];
+  partes.push(sec('ti-file-description', 'Datos del contrato', '', `
+    ${fila(t('datos.producto', 'Contrato / producto', p.producto))}
+    ${fila(t('datos.proveedor', 'Proveedor', p.proveedor, false), t('datos.areaSolicitante', 'Área solicitante', p.areaSolicitante, false))}
+    ${fila(`<label>Cantidad<input type="number" name="datos.cantidad" step="any" min="0" value="${v(p.cantidad)}" required></label>`, t('datos.unidadMedida', 'Unidad', p.unidadMedida, false), mo('datos.montoEstimado', 'Monto contratado', p.montoEstimado), fe('datos.fechaSolicitud', 'Fecha del contrato', p.fechaSolicitud))}
+    <label>Descripción<textarea name="datos.descripcion" rows="3">${v(p.descripcion)}</textarea></label>`));
+  if (p.autorizacion) partes.push(sec('ti-file-certificate', 'Oficio de autorización', '', fila(
+    t('autorizacion.noOficio', 'No. de oficio', p.autorizacion.noOficio), mo('autorizacion.monto', 'Monto autorizado', p.autorizacion.monto), fe('autorizacion.fecha', 'Fecha', p.autorizacion.fecha))));
+  if (p.oficio) partes.push(sec('ti-adjustments-dollar', 'Oficio de adecuación', '', fila(
+    t('adecuacion.folio', 'Folio', p.oficio.folio), mo('adecuacion.monto', 'Nuevo monto autorizado', p.oficio.monto), fe('adecuacion.fecha', 'Fecha', p.oficio.fecha))));
+  (p.oficios || []).forEach(of => partes.push(sec('ti-file-plus', 'Oficio de ' + (of.tipo === 'cancelacion' ? 'cancelación' : 'ampliación'), escaparHtml(of.folio), fila(
+    `<label>Tipo<select name="of.${of.id}.tipo"><option value="ampliacion" ${of.tipo === 'ampliacion' ? 'selected' : ''}>Ampliación</option><option value="cancelacion" ${of.tipo === 'cancelacion' ? 'selected' : ''}>Cancelación</option></select></label>`,
+    t(`of.${of.id}.folio`, 'Folio', of.folio), mo(`of.${of.id}.monto`, 'Monto', of.monto), fe(`of.${of.id}.fecha`, 'Fecha', of.fecha)))));
+  (p.facturas || []).forEach(f => {
+    const cr = f.contrarecibo || {}, k = 'cr.' + f.id + '.';
+    const sub = (titulo, cuerpo) => `<div class="ed-sub"><div class="ed-sub-titulo">${titulo}</div>${cuerpo}</div>`;
+    let cuerpo = sub('Contrarrecibo', fila(t(k + 'contrarecibo.noContrarecibo', 'No. de contrarrecibo', cr.noContrarecibo), fe(k + 'contrarecibo.fecha', 'Fecha', cr.fecha), t(k + 'contrarecibo.cuentaPorPagar', 'Cuenta por pagar', cr.cuentaPorPagar), mo(k + 'contrarecibo.monto', 'Monto', cr.monto)));
+    if (f.factura) cuerpo += sub('Factura', fila(t(k + 'factura.noFactura', 'No. de factura', f.factura.noFactura), fe(k + 'factura.fecha', 'Fecha', f.factura.fecha), mo(k + 'factura.monto', 'Monto', f.factura.monto)) + `<label>Descripción<input type="text" name="${k}factura.descripcion" value="${v(f.factura.descripcion)}" required></label>`);
+    if (f.entrega) cuerpo += sub('Entrega', fila(fe(k + 'entrega.fecha', 'Fecha de entrega', f.entrega.fecha)));
+    if (f.oficioContabilidad) cuerpo += sub('Contabilidad', fila(t(k + 'contabilidad.noOficio', 'No. de oficio', f.oficioContabilidad.noOficio), fe(k + 'contabilidad.fecha', 'Fecha', f.oficioContabilidad.fecha), mo(k + 'contabilidad.monto', 'Monto', f.oficioContabilidad.monto)));
+    if (f.procesoPago) cuerpo += sub('Comprobante de pago', fila(fe(k + 'procesoPago.fecha', 'Fecha', f.procesoPago.fecha), mo(k + 'procesoPago.monto', 'Monto', f.procesoPago.monto)));
+    if (f.pago) cuerpo += sub('Pagado', fila(fe(k + 'pago.fecha', 'Fecha de pago', f.pago.fecha)));
+    partes.push(sec('ti-receipt-2', 'Contrarrecibo ' + escaparHtml(cr.noContrarecibo || ''), fmtMoneda.format(cr.monto || 0), cuerpo));
+  });
+  if (p.reduccion) partes.push(sec('ti-arrow-down-circle', 'Reducción líquida', '', fila(mo('reduccion.montoEjercido', 'Nuevo autorizado', p.reduccion.montoEjercido), fe('reduccion.fecha', 'Fecha', p.reduccion.fecha))));
+  return `
+    <div class="fi-oficio" id="editar-${p.id}" hidden>
+      <form class="form-editar-todo" data-pedido-id="${p.id}">
+        <div class="fi-oficio-titulo">Editar información del contrato</div>
+        <p class="hist-sub">Corrige cualquier dato ya registrado. Si algo no cuadra (montos o números repetidos) no se guarda nada y te decimos qué revisar.</p>
+        <nav class="ed-indice">${partes.length > 3 ? (p.facturas || []).map(f => `<span>CR ${escaparHtml(f.contrarecibo.noContrarecibo || '')}</span>`).join('') : ''}</nav>
+        <div class="ed-cuerpo">${partes.join('')}</div>
+        <div class="ppa-botones ed-botones">
+          <button type="submit" class="btn btn-primario btn-sm"><i class="ti ti-device-floppy"></i> Guardar cambios</button>
+          <button type="button" class="btn btn-texto btn-sm" data-abrir-cr="editar-${p.id}">Cancelar</button>
+        </div>
+      </form>
+    </div>`;
 }
 
 // ---------- Reducción líquida (opcional, en cualquier momento) ----------

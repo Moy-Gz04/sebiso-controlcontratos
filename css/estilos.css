@@ -1052,7 +1052,28 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 .factura-item .fi-oficio { grid-column: 1 / -1; }
 @media (max-width: 1000px) { .fi-accion { justify-content: flex-start; } }
 
-/* Historial y panel del paso actual: mitad y mitad */
+/* Ventana "Editar información": secciones claras */
+.modal-cr:has(.form-editar-todo) { max-width: 860px; }
+.form-editar-todo .ed-cuerpo { max-height: 62vh; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 14px; }
+.form-editar-todo .ed-indice { display: none; }
+.ed-seccion { margin: 0; padding: 14px 16px 6px; border: 1px solid var(--borde); border-radius: var(--radio-sm); background: #FCFAF7; min-width: 0; }
+.ed-seccion legend { display: flex; align-items: center; gap: 6px; padding: 0 6px; font-size: 13px; font-weight: 700; color: var(--guinda-oscuro); text-transform: uppercase; letter-spacing: .4px; }
+.ed-seccion legend .ti { font-size: 16px; color: var(--guinda); }
+.ed-seccion legend small { margin-left: 6px; font-size: 12px; font-weight: 600; color: var(--texto-tenue); text-transform: none; letter-spacing: 0; }
+.ed-fila { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; margin-bottom: 10px; }
+.ed-seccion label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--texto-suave); margin-bottom: 10px; }
+.ed-fila label { margin-bottom: 0; }
+.ed-seccion input, .ed-seccion select, .ed-seccion textarea { width: 100%; box-sizing: border-box; }
+.ed-sub { padding: 10px 0 2px; border-top: 1px dashed var(--borde-fuerte); }
+.ed-sub:first-of-type { border-top: 0; padding-top: 0; }
+.ed-sub-titulo { font-size: 11.5px; font-weight: 700; color: var(--guinda); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.ed-botones { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--borde); }
+
+/* Historial y panel del paso actual: mitad y mitad (mismo alto, alineados arriba) */
+.cuerpo-mitades { align-items: stretch !important; }
+.cuerpo-mitades > section { display: flex; flex-direction: column; }
+.cuerpo-mitades > section > .panel-paso-actual { flex: 1; margin: 0; box-sizing: border-box; }
+.historial-mitad .nota-descripcion { margin-top: 0 !important; }
 .cuerpo-mitades { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-bottom: 24px; align-items: start; }
 .historial-mitad .nota-descripcion { margin: 0 0 20px; }
 .hist-encabezado { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }

@@ -629,6 +629,113 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ---------- Editar todo ----------
+// Corrige cualquier dato ya registrado (no crea pasos nuevos): datos del contrato,
+// oficios, reducción y cada etapa de cada contrarrecibo. Todo en una transacción:
+// si algo no cuadra, no se guarda nada.
+router.put('/:id/editar-todo', async (req, res) => {
+  const id = Number(req.params.id);
+  const b = req.body || {};
+  const fallo = msg => { const e = new Error(msg); e.usuario = true; throw e; };
+  const reqTexto = (v, nombre) => texto(v) || fallo('Falta ' + nombre);
+  const reqFecha = (v, nombre) => fecha(v) || fallo('Fecha inválida en ' + nombre);
+  const reqMonto = (v, nombre) => { const n = num(v); if (!(n > 0)) fallo('El monto de ' + nombre + ' debe ser mayor a 0'); return n; };
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM pedidos WHERE id=$1 FOR UPDATE', [id]);
+    if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' }); }
+    const row = rows[0];
+
+    if (b.datos) {
+      const d = b.datos;
+      await client.query(
+        `UPDATE pedidos SET producto=$1, cantidad=$2, unidad_medida=$3, descripcion=$4, proveedor=$5,
+           area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8 WHERE id=$9`,
+        [reqTexto(d.producto, 'el nombre del contrato (Datos del contrato)'), num(d.cantidad) || 1, texto(d.unidadMedida), texto(d.descripcion),
+         texto(d.proveedor), texto(d.areaSolicitante), num(d.montoEstimado) || 0, reqFecha(d.fechaSolicitud, 'Datos del contrato'), id]);
+    }
+    if (b.autorizacion && row.aut_folio) {
+      const a = b.autorizacion;
+      await client.query('UPDATE pedidos SET aut_folio=$1, aut_monto=$2, aut_fecha=$3 WHERE id=$4',
+        [reqTexto(a.noOficio, 'el No. del oficio de autorización'), reqMonto(a.monto, 'el oficio de autorización'), reqFecha(a.fecha, 'el oficio de autorización'), id]);
+    }
+    if (b.adecuacion && row.oficio_folio) {
+      const a = b.adecuacion;
+      await client.query('UPDATE pedidos SET oficio_folio=$1, oficio_monto=$2, oficio_fecha=$3 WHERE id=$4',
+        [reqTexto(a.folio, 'el folio del oficio de adecuación'), reqMonto(a.monto, 'el oficio de adecuación'), reqFecha(a.fecha, 'el oficio de adecuación'), id]);
+    }
+    if (b.reduccion && row.reduccion_monto !== null) {
+      await client.query('UPDATE pedidos SET reduccion_monto=$1, reduccion_fecha=$2 WHERE id=$3',
+        [reqMonto(b.reduccion.montoEjercido, 'la reducción líquida'), reqFecha(b.reduccion.fecha, 'la reducción líquida'), id]);
+    }
+    for (const ofi of (Array.isArray(b.oficios) ? b.oficios : [])) {
+      const tipo = ofi.tipo === 'cancelacion' ? 'cancelacion' : 'ampliacion';
+      await client.query('UPDATE pedido_oficios SET tipo=$1, folio=$2, monto=$3, fecha=$4 WHERE id=$5 AND pedido_id=$6',
+        [tipo, reqTexto(ofi.folio, 'el folio de un oficio de ' + tipo), reqMonto(ofi.monto, 'un oficio de ' + tipo), reqFecha(ofi.fecha, 'un oficio de ' + tipo), Number(ofi.id), id]);
+    }
+    for (const c of (Array.isArray(b.contrarecibos) ? b.contrarecibos : [])) {
+      const { rows: fr } = await client.query('SELECT * FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [Number(c.id), id]);
+      if (!fr.length) continue;
+      const f = fr[0];
+      const nom = 'contrarrecibo ' + (texto(c.contrarecibo && c.contrarecibo.noContrarecibo) || f.cr_no);
+      if (c.contrarecibo) {
+        const x = c.contrarecibo;
+        await client.query('UPDATE pedido_facturas SET cr_no=$1, cr_fecha=$2, cr_cuenta=$3, cr_monto=$4 WHERE id=$5',
+          [reqTexto(x.noContrarecibo, 'el No. de contrarrecibo'), reqFecha(x.fecha, nom), reqTexto(x.cuentaPorPagar, 'la cuenta por pagar del ' + nom), reqMonto(x.monto, nom), f.id]);
+      }
+      if (c.factura && f.no_factura) {
+        const x = c.factura;
+        await client.query('UPDATE pedido_facturas SET no_factura=$1, fecha=$2, descripcion=$3, monto=$4 WHERE id=$5',
+          [reqTexto(x.noFactura, 'el No. de factura del ' + nom), reqFecha(x.fecha, 'la factura del ' + nom), reqTexto(x.descripcion, 'la descripción de la factura del ' + nom), reqMonto(x.monto, 'la factura del ' + nom), f.id]);
+      }
+      if (c.entrega && f.entrega_fecha) {
+        await client.query('UPDATE pedido_facturas SET entrega_fecha=$1 WHERE id=$2', [reqFecha(c.entrega.fecha, 'la entrega del ' + nom), f.id]);
+      }
+      if (c.contabilidad && f.fecha_contabilidad) {
+        const x = c.contabilidad;
+        await client.query('UPDATE pedido_facturas SET contab_oficio=$1, fecha_contabilidad=$2, contab_monto=$3 WHERE id=$4',
+          [reqTexto(x.noOficio, 'el oficio de contabilidad del ' + nom), reqFecha(x.fecha, 'contabilidad del ' + nom), reqMonto(x.monto, 'contabilidad del ' + nom), f.id]);
+      }
+      if (c.procesoPago && f.fecha_inicio_pago) {
+        await client.query('UPDATE pedido_facturas SET fecha_inicio_pago=$1, proc_pago_monto=$2 WHERE id=$3',
+          [reqFecha(c.procesoPago.fecha, 'el proceso de pago del ' + nom), reqMonto(c.procesoPago.monto, 'el proceso de pago del ' + nom), f.id]);
+      }
+      if (c.pago && f.fecha_pagado) {
+        await client.query('UPDATE pedido_facturas SET fecha_pagado=$1 WHERE id=$2', [reqFecha(c.pago.fecha, 'el pago del ' + nom), f.id]);
+      }
+    }
+
+    // Que todo siga cuadrando
+    const { rows: dupCr } = await client.query('SELECT cr_no FROM pedido_facturas WHERE pedido_id=$1 AND cr_no IS NOT NULL GROUP BY lower(cr_no), cr_no HAVING count(*) > 1', [id]);
+    if (dupCr.length) fallo('Hay dos contrarrecibos con el No. ' + dupCr[0].cr_no);
+    const { rows: dupF } = await client.query('SELECT lower(no_factura) AS n FROM pedido_facturas WHERE pedido_id=$1 AND no_factura IS NOT NULL GROUP BY lower(no_factura) HAVING count(*) > 1', [id]);
+    if (dupF.length) fallo('Hay dos facturas con el No. ' + dupF[0].n);
+    const { rows: nuevo } = await client.query('SELECT * FROM pedidos WHERE id=$1', [id]);
+    const n = nuevo[0];
+    const ajuste = async con => Number((await client.query(
+      "SELECT COALESCE(SUM(CASE WHEN tipo='ampliacion' THEN monto ELSE -monto END),0) AS a FROM pedido_oficios WHERE pedido_id=$1 AND posterior_reduccion=$2", [id, con])).rows[0].a);
+    const baseSin = n.oficio_monto !== null ? Number(n.oficio_monto) : (n.aut_monto !== null ? Number(n.aut_monto) : null);
+    const autSin = baseSin === null ? null : baseSin + await ajuste(false);
+    const vigente = n.reduccion_monto !== null ? Number(n.reduccion_monto) + await ajuste(true) : autSin;
+    const totCr = Number((await client.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1', [id])).rows[0].t);
+    if (n.reduccion_monto !== null && autSin !== null && Number(n.reduccion_monto) > autSin + 0.005) fallo('La reducción líquida no puede ser mayor al autorizado (' + autSin.toFixed(2) + ')');
+    if (vigente !== null && totCr > vigente + 0.005) fallo('Los contrarrecibos (' + totCr.toFixed(2) + ') suman más que el autorizado vigente (' + vigente.toFixed(2) + ')');
+
+    await client.query('UPDATE pedidos SET actualizado_en=now() WHERE id=$1', [id]);
+    await client.query('COMMIT');
+    await recalcularEstatus(id);
+    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (error.usuario) return res.status(400).json({ ok: false, mensaje: error.message });
+    console.error('Error en PUT /editar-todo:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al guardar los cambios' });
+  } finally {
+    client.release();
+  }
+});
+
 // Al arrancar: los contratos que estaban en el antiguo paso "reducción" vuelven al
 // flujo de contrarrecibos y se recalcula su estatus
 (async () => {

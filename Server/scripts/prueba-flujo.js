@@ -137,6 +137,15 @@ async function completar(P, fid, monto, noFactura) {
     r = await api('PUT', `/pedidos/${B}/reduccion`, { montoEjercido: 1000.5, fecha: hoy });
     check(r.status === 400, 'la reducción no supera el autorizado al corregirla');
 
+    console.log('Editar todo:');
+    r = await api('PUT', '/pedidos/' + A + '/editar-todo', { autorizacion: { noOficio: 'SH/1-B', monto: 50000, fecha: '2026-01-15' }, contrarecibos: [{ id: C1, pago: { fecha: '2026-02-01' }, factura: { noFactura: 'F-1b', fecha: hoy, descripcion: 'x', monto: 21000 } }] });
+    if (!r.ok) console.log('   >', r.status, r.mensaje);
+    check(r.ok && r.pedido.autorizacion.noOficio === 'SH/1-B' && r.pedido.autorizacion.fecha === '2026-01-15' && cr(r.pedido, C1).pago.fecha === '2026-02-01' && cr(r.pedido, C1).factura.noFactura === 'F-1b', 'edita oficio de autorización, fecha de pago y factura');
+    r = await api('PUT', '/pedidos/' + A + '/editar-todo', { contrarecibos: [{ id: C1, contrarecibo: { noContrarecibo: 'CR-2', fecha: hoy, cuentaPorPagar: 'X', monto: 21000 } }] });
+    check(r.status === 400 && /CR-2/i.test(r.mensaje), 'no deja dos contrarrecibos con el mismo número: ' + r.mensaje);
+    r = await api('PUT', '/pedidos/' + A + '/editar-todo', { autorizacion: { noOficio: 'SH/1-C', monto: 50000, fecha: hoy }, contrarecibos: [{ id: C1, contrarecibo: { noContrarecibo: 'CR-1', fecha: hoy, cuentaPorPagar: 'X', monto: 999999 } }] });
+    const tras = (await api('GET', '/pedidos')).pedidos.find(x => x.id === A);
+    check(r.status === 400 && tras.autorizacion.noOficio === 'SH/1-B', 'si algo no cuadra no guarda nada (transacción)');
     r = await api('GET', '/pedidos');
     const a = r.pedidos.find(p => p.id === A);
     check(a && a.facturas.length === 3 && a.documentoReduccion, 'el listado trae contrarrecibos y documentos');

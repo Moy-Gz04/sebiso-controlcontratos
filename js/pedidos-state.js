@@ -130,6 +130,10 @@ const StorePedidos = {
     const datos = await peticion(`/pedidos/${id}/facturas/${fid}/${ruta}`, { method: 'PUT', body: JSON.stringify(cuerpo) });
     return datos.pedido;
   },
+  async editarTodo(id, cuerpo) {
+    const datos = await peticion(`/pedidos/${id}/editar-todo`, { method: 'PUT', body: JSON.stringify(cuerpo) });
+    return datos.pedido;
+  },
   async eliminarContrarecibo(id, fid) {
     const datos = await peticion(`/pedidos/${id}/facturas/${fid}`, { method: 'DELETE' });
     return datos.pedido;
