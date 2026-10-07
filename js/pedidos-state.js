@@ -82,18 +82,71 @@ const StorePedidos = {
 
   async abrirContrato(id, ruta = 'contrato') {
     const ventana = window.open('', '_blank');   // se abre ya, para que el navegador no la bloquee
+    let avance = null;
     if (ventana) {
-      // Mientras descarga (los PDF grandes tardan unos segundos) la pestaña no se queda en blanco
+      // Mientras descarga (los PDF grandes tardan unos segundos) la pestaña no se queda en blanco:
+      // una barra de avance aproximado que se acerca al 95 % y se completa al abrir el archivo
       ventana.document.title = 'Cargando…';
-      ventana.document.body.innerHTML = '<div style="font:16px Segoe UI,Arial,sans-serif;color:#5a1e2c;display:flex;align-items:center;justify-content:center;height:90vh;flex-direction:column;gap:10px"><b>Cargando documento…</b><span style="color:#777;font-size:13px">Los archivos grandes pueden tardar unos segundos.</span></div>';
+      ventana.document.body.style.margin = '0';
+      ventana.document.body.innerHTML = `
+        <div style="font:16px Segoe UI,Arial,sans-serif;color:#5a1e2c;display:flex;align-items:center;justify-content:center;height:96vh;flex-direction:column;gap:14px;background:#F7F5F2">
+          <b style="font-size:18px">Cargando documento…</b>
+          <div style="width:min(360px,80vw);height:10px;border-radius:999px;background:#EAE3D9;overflow:hidden">
+            <div id="barra" style="height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#6B0F2B,#BC955C);transition:width .25s ease"></div>
+          </div>
+          <span id="pct" style="font-weight:700;font-variant-numeric:tabular-nums">0%</span>
+          <span style="color:#777;font-size:13px">Los archivos grandes pueden tardar unos segundos.</span>
+        </div>`;
+    }
+    // Avance: lo real cuando se conoce el tamaño; si no, uno aproximado que se acerca al 95 %
+    let pct = 0, real = null;
+    const pintar = (v) => {
+      try {
+        ventana.document.getElementById('barra').style.width = v.toFixed(1) + '%';
+        ventana.document.getElementById('pct').textContent = Math.floor(v) + '%';
+      } catch (e) { clearInterval(avance); }
+    };
+    if (ventana) {
+      avance = setInterval(() => {
+        pct = real !== null ? Math.max(pct, real) : pct + (95 - pct) * 0.03;
+        pintar(Math.min(pct, 99));
+      }, 120);
+      setTimeout(() => clearInterval(avance), 180000);
     }
     try {
-      // Se pide un enlace temporal y la pestaña abre el archivo directo del
-      // servidor (Chrome bloquea pasar la pestaña a un blob: creado aquí).
+      // Enlace temporal al archivo en el servidor
       const datos = await peticion(`/pedidos/${id}/enlace/${ruta}`, { method: 'POST' });
       const url = API_BASE_URL + datos.ruta;
-      if (ventana) ventana.location.href = url; else window.open(url, '_blank');
+      if (!ventana) { window.open(url, '_blank'); return; }
+      try {
+        // Se descarga aquí para mostrar el avance y luego se muestra en la misma pestaña
+        const r = await fetch(url);
+        if (!r.ok || !r.body) throw new Error('descarga');
+        const total = Number(r.headers.get('Content-Length')) || 0;
+        const lector = r.body.getReader();
+        const partes = []; let recibido = 0;
+        for (;;) {
+          const { done, value } = await lector.read();
+          if (done) break;
+          partes.push(value); recibido += value.length;
+          if (total) real = recibido / total * 100;
+        }
+        clearInterval(avance); pintar(100);
+        const blob = new Blob(partes, { type: r.headers.get('Content-Type') || 'application/pdf' });
+        const enlace = URL.createObjectURL(blob);
+        ventana.document.title = 'Documento';
+        ventana.document.body.innerHTML = '';
+        const marco = ventana.document.createElement('iframe');
+        marco.src = enlace;
+        marco.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0';
+        ventana.document.body.appendChild(marco);
+      } catch (e) {
+        // Si no se pudo descargar aquí, la pestaña abre el archivo directo del servidor
+        clearInterval(avance);
+        ventana.location.href = url;
+      }
     } catch (err) {
+      clearInterval(avance);
       if (ventana) ventana.close();
       throw err;
     }

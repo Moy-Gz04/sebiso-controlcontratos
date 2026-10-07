@@ -494,7 +494,7 @@ function renderCuerpoPedido(p) {
       ${renderMontosContrato(p)}
     </details>`;
 
-  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + oficiosHtml + cantidades + acciones;
+  return `<div class="bloque-documentos">${docs}</div>` + recorrido + detalle + renderFacturas(p, idxActual) + oficiosHtml + cantidades + acciones;
 }
 
 const tamanoArchivo = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
