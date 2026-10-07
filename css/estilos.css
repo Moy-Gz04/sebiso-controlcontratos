@@ -676,11 +676,11 @@ tbody tr:last-child td { border-bottom: none; }
 .recorrido {
   --avance: 0;
   list-style: none; margin: 0 0 26px; padding: 0; position: relative;
-  display: grid; grid-template-columns: repeat(10, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(var(--n, 10), minmax(0, 1fr));
 }
-.recorrido::before, .recorrido::after { content: ""; position: absolute; top: 19px; left: calc(100% / 20); height: 3px; border-radius: 3px; }
-.recorrido::before { right: calc(100% / 20); background: var(--borde-fuerte); }
-.recorrido::after { width: calc((100% - 100% / 10) * var(--avance)); background: var(--dorado); transform-origin: left; }
+.recorrido::before, .recorrido::after { content: ""; position: absolute; top: 19px; left: calc(100% / (2 * var(--n, 10))); height: 3px; border-radius: 3px; }
+.recorrido::before { right: calc(100% / (2 * var(--n, 10))); background: var(--borde-fuerte); }
+.recorrido::after { width: calc((100% - 100% / var(--n, 10)) * var(--avance)); background: var(--dorado); transform-origin: left; }
 .rec-paso { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .rec-circulo {
   width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px;
@@ -1014,6 +1014,34 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 .nueva-cr-btn span { font-weight: 500; color: var(--texto-tenue); }
 .nueva-cr-btn:hover { border-color: var(--guinda-claro); }
 @media (max-width: 560px) { .modal-cr .fila-formulario, .modal-cr .fila-formulario.fila-4 { grid-template-columns: 1fr; } .modal-cr { padding: 24px 18px 18px; } }
+
+/* Panel del paso actual a todo lo ancho (el historial va plegado más abajo) */
+.panel-accion-ancho { margin-bottom: 24px; }
+.panel-accion-ancho .panel-seguimiento .seguimiento-cuentas { max-width: 760px; }
+
+/* Historial compacto: una línea por movimiento */
+.detalle-historial .linea-compacta { padding: 14px 4px 4px 22px; }
+.linea-compacta li { grid-template-columns: 82px minmax(0, 1fr); padding: 0 0 8px; align-items: baseline; }
+.linea-compacta li::before { top: 4px; width: 8px; height: 8px; left: -17px; }
+.linea-compacta .lt-texto { display: flex; flex-wrap: wrap; column-gap: 8px; font-size: 13px; min-width: 0; }
+.linea-compacta .lt-texto b { font-weight: 600; color: var(--texto); }
+.linea-compacta .lt-texto span { color: var(--texto-suave); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.detalle-historial .dm-resumen b { font-weight: 600; }
+
+/* Documentos del contrato: botones con el nombre del paso */
+.bloque-documentos { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+.doc-boton { display: inline-flex; align-items: stretch; height: 40px; border-radius: 10px; border: 1px solid var(--borde); background: var(--dorado-suave); overflow: hidden; }
+.doc-ver { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--guinda-oscuro); cursor: pointer; text-transform: uppercase; letter-spacing: .3px; }
+.doc-ver .ti { font-size: 17px; }
+.doc-ver .doc-ojo { font-size: 15px; color: var(--guinda-claro); opacity: .7; }
+.doc-ver:hover { background: #EBDDC4; }
+.doc-reemplazar { display: grid; place-items: center; width: 38px; border-left: 1px solid #E3D3B6; color: var(--texto-suave); cursor: pointer; margin: 0; }
+.doc-reemplazar:hover { background: #EBDDC4; color: var(--guinda); }
+.doc-subir { gap: 8px; align-items: center; padding: 0 14px; background: #fff; border-style: dashed; border-color: var(--borde-fuerte); color: var(--texto-suave); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; cursor: pointer; margin: 0; }
+.doc-subir small { font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--guinda); }
+.doc-subir:hover { border-color: var(--guinda-claro); }
+.doc-ver:focus-visible, .doc-reemplazar:focus-within, .doc-subir:focus-within { outline: 2px solid var(--guinda); outline-offset: 2px; }
+@media (max-width: 720px) { .doc-boton { flex: 1 1 100%; } .doc-ver { flex: 1; } }
 /* Contrarrecibos: mini recorrido de cada uno y acciones */
 .cr-etapas { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .cr-etapa { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--texto-tenue); background: #F6F3EE; border: 1px solid transparent; }

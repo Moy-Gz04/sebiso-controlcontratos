@@ -9,6 +9,7 @@
 let pedidosCache = [];
 const tarjetasPedidoExpandidas = new Set();
 const tarjetasMontosAbiertas = new Set();
+const tarjetasHistorialAbierto = new Set();  // "Historial" desplegado
 const tarjetasOficiosAbiertos = new Set();   // "Oficios de ampliación / cancelación" desplegados   // "Cantidades del contrato" desplegadas
 let filtroEtapa = '';          // '' = todas las etapas
 let ultimaTarjetaAbierta = null; // para animar solo la que se acaba de abrir
@@ -273,30 +274,66 @@ function renderMontosContrato(p) {
     ${avisos.map(a => `<p class="aviso-monto"><i class="ti ti-alert-triangle"></i>${a}</p>`).join('')}`;
 }
 
+// ---------- Recorrido del contrato ----------
+// Las etapas de los contrarrecibos (contrarrecibos, factura, entrega, contabilidad,
+// comprobante de pago) están ligadas: si falta monto por amparar o algún
+// contrarrecibo no ha llegado a una etapa, esa etapa y las siguientes parpadean.
+const RECORRIDO = [
+  { clave: 'contrato',     label: 'Contrato',               icono: 'ti-file-plus' },
+  { clave: 'autorizacion', label: 'Oficio de autorización', icono: 'ti-file-certificate' },
+  { clave: 'adecuacion',   label: 'Oficio de adecuación',   icono: 'ti-adjustments-dollar', opcional: true },
+  { clave: 'cr',           label: 'Contrarrecibos',         icono: 'ti-receipt-2', etapa: 0, falta: 'faltan contrarrecibos' },
+  { clave: 'factura',      label: 'Factura',                icono: 'ti-receipt', etapa: 1, falta: 'faltan facturas' },
+  { clave: 'entrega',      label: 'Entrega',                icono: 'ti-truck-delivery', etapa: 2, falta: 'faltan entregas' },
+  { clave: 'reduccion',    label: 'Reducción líquida',      icono: 'ti-arrow-down-circle', opcional: true },
+  { clave: 'contab',       label: 'Contabilidad',           icono: 'ti-calculator', etapa: 3, falta: 'faltan oficios' },
+  { clave: 'comprobante',  label: 'Comprobante de pago',    icono: 'ti-cash', etapa: 4, falta: 'faltan comprobantes' },
+  { clave: 'pagado',       label: 'Pagado',                 icono: 'ti-circle-check' }
+];
+
+function renderRecorrido(p, idxActual, m) {
+  const crs = p.facturas || [];
+  const etapaDe = f => ['contrarecibo', 'facturado', 'entregado', 'en_contabilidad', 'en_pago', 'pagada'].indexOf(f.estado);
+  const conCR = idxActual >= indicePaso('factura_recibida') && crs.length > 0;
+  const faltaMonto = (m.porRegistrar || 0) > 0.005;
+  const estados = RECORRIDO.map(paso => {
+    if (paso.clave === 'contrato') return 'hecho';
+    if (paso.clave === 'autorizacion') return idxActual >= indicePaso('oficio_autorizado') ? 'hecho' : 'siguiente';
+    if (paso.clave === 'adecuacion') return pasoOmitido(p, 'adecuacion') ? 'omitido' : p.oficio ? 'hecho' : 'siguiente';
+    if (paso.clave === 'reduccion') return pasoOmitido(p, 'reduccion') ? 'omitido' : p.reduccion ? 'hecho' : 'siguiente';
+    if (paso.clave === 'pagado') return p.estatus === 'pagado' ? 'hecho' : 'siguiente';
+    if (!conCR) return 'siguiente';
+    const atrasados = crs.filter(f => etapaDe(f) < paso.etapa).length;
+    return faltaMonto || atrasados ? 'faltan' : 'hecho';
+  });
+  // El primero sin hacer (ni omitido ni con faltantes) es el actual
+  const iActual = estados.indexOf('siguiente');
+  const final = estados.map((e, i) => e === 'siguiente' ? (i === iActual ? 'actual' : 'pendiente') : e);
+  const ultimo = final.reduce((u, e, i) => (e === 'hecho' || e === 'faltan' || e === 'omitido') ? i : u, 0);
+  const n = RECORRIDO.length;
+  return `
+    <div class="subseccion-titulo">Recorrido del contrato</div>
+    <ol class="recorrido" style="--n:${n};--avance:${ultimo / (n - 1)}">
+      ${RECORRIDO.map((paso, i) => {
+        const estado = final[i];
+        const icono = estado === 'faltan' ? 'ti-alert-triangle' : estado === 'omitido' ? 'ti-minus' : estado === 'hecho' ? 'ti-check' : paso.icono;
+        const nota = estado === 'faltan' ? paso.falta : paso.opcional && estado !== 'hecho' ? (estado === 'omitido' ? 'omitido' : 'opcional') : '';
+        return `
+          <li class="rec-paso ${estado}" style="--j:${i}" ${estado === 'faltan' ? `title="${textoFaltan(m) || 'Hay contrarrecibos pendientes en esta etapa'}"` : ''}>
+            <span class="rec-circulo"><i class="ti ${icono}"></i></span>
+            <span class="rec-label">${paso.label}${nota ? `<small>${nota}</small>` : ''}</span>
+          </li>`;
+      }).join('')}
+    </ol>`;
+}
+
 // ---------- Cuerpo desplegado ----------
 
 function renderCuerpoPedido(p) {
   const idxActual = indicePaso(p.estatus);
   const mRec = montosDelContrato(p);
 
-  const recorrido = `
-    <div class="subseccion-titulo">Recorrido del contrato</div>
-    <ol class="recorrido" style="--avance:${idxActual / (PASOS_PEDIDO.length - 1)}">
-      ${PASOS_PEDIDO.map((paso, i) => {
-        const omitido = pasoOmitido(p, paso.clave);
-        // "estatus" es el último paso ya registrado: lo de antes está hecho y el siguiente es el actual
-        // Facturas ya iniciadas pero sin cubrir el saldo: en lugar de palomita, alerta roja que parpadea
-        const faltanFacturas = paso.clave === 'factura_recibida' && i <= idxActual && ((mRec.porRegistrar || 0) > 0.005 || (mRec.porFacturar || 0) > 0.005);
-        const estado = faltanFacturas ? 'faltan' : omitido ? 'omitido' : i <= idxActual ? 'hecho' : i === idxActual + 1 ? 'actual' : 'pendiente';
-        const icono = faltanFacturas ? 'ti-alert-triangle' : omitido ? 'ti-minus' : i <= idxActual ? 'ti-check' : paso.icono;
-        return `
-          <li class="rec-paso ${estado}" style="--j:${i}" ${faltanFacturas ? `title="${textoFaltan(mRec)}"` : ''}>
-            <span class="rec-circulo"><i class="ti ${icono}"></i></span>
-            <span class="rec-label">${paso.label}${faltanFacturas ? `<small>${(mRec.porRegistrar || 0) > 0.005 ? ((mRec.porFacturar || 0) > 0.005 ? 'faltan contrarrecibos y facturas' : 'faltan contrarrecibos') : 'faltan facturas'}</small>` : paso.opcional ? `<small>${omitido ? 'omitido' : 'opcional'}</small>` : ''}</span>
-          </li>`;
-      }).join('')}
-    </ol>
-  `;
+  const recorrido = renderRecorrido(p, idxActual, mRec);
 
   // Línea de tiempo con lo que ya se capturó, en orden
   const m = montosDelContrato(p);
@@ -309,7 +346,7 @@ function renderCuerpoPedido(p) {
       const cr = 'CR ' + escaparHtml(f.contrarecibo.noContrarecibo || '');
       return [
         { fecha: f.contrarecibo.fecha, titulo: 'Contrarrecibo ' + escaparHtml(f.contrarecibo.noContrarecibo || ''), detalle: `Cuenta por pagar ${escaparHtml(f.contrarecibo.cuentaPorPagar || '')} · ${fmtMoneda.format(f.contrarecibo.monto || 0)}` },
-        f.factura && { fecha: f.factura.fecha, titulo: cr + ' · factura ' + escaparHtml(f.factura.noFactura), detalle: `${fmtMoneda.format(f.factura.monto)} · ${escaparHtml(f.factura.descripcion || '')}` },
+        f.factura && { fecha: f.factura.fecha, titulo: cr + ' · factura ' + escaparHtml(f.factura.noFactura), detalle: fmtMoneda.format(f.factura.monto) },
         f.entrega && { fecha: f.entrega.fecha, titulo: cr + ' · entrega', detalle: '' },
         f.oficioContabilidad && { fecha: f.oficioContabilidad.fecha, titulo: cr + ' · a contabilidad', detalle: f.oficioContabilidad.noOficio ? 'Oficio ' + escaparHtml(f.oficioContabilidad.noOficio) : '' },
         f.procesoPago && { fecha: f.procesoPago.fecha, titulo: cr + ' · proceso de pago', detalle: f.procesoPago.monto !== null ? fmtMoneda.format(f.procesoPago.monto) : '' },
@@ -320,25 +357,23 @@ function renderCuerpoPedido(p) {
     p.estatus === 'pagado' && p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Contrato pagado', detalle: 'Proceso concluido', destacado: true }
   ].filter(Boolean).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
 
-  const detalle = `
-    <div class="cuerpo-columnas">
-      <section>
-        <div class="subseccion-titulo">Historial</div>
-        <ul class="linea-tiempo">
-          ${eventos.map(e => `
-            <li class="${e.destacado ? 'destacado' : ''}">
-              <span class="lt-fecha">${fmtFecha(e.fecha)}</span>
-              <span class="lt-titulo">${e.titulo}</span>
-              ${e.detalle ? `<span class="lt-detalle">${e.detalle}</span>` : ''}
-            </li>`).join('')}
-        </ul>
-        ${p.descripcion ? `<div class="nota-descripcion"><i class="ti ti-notes"></i>${escaparHtml(p.descripcion)}</div>` : ''}
-      </section>
-      <section>
-        ${renderPanelAccionPedido(p, idxActual)}
-      </section>
-    </div>
-  `;
+  const ultimoEv = eventos[eventos.length - 1];
+  const historial = `
+    <details class="detalle-montos detalle-historial" ${tarjetasHistorialAbierto.has(p.id) ? 'open' : ''} data-historial-id="${p.id}">
+      <summary>
+        <span class="dm-titulo"><i class="ti ti-chevron-right"></i> Historial</span>
+        <span class="dm-resumen">${eventos.length} movimiento${eventos.length === 1 ? '' : 's'}${ultimoEv ? ` · último: <b>${ultimoEv.titulo}</b> ${fmtFecha(ultimoEv.fecha)}` : ''}</span>
+      </summary>
+      <ul class="linea-tiempo linea-compacta">
+        ${eventos.map(e => `
+          <li class="${e.destacado ? 'destacado' : ''}">
+            <span class="lt-fecha">${fmtFecha(e.fecha)}</span>
+            <span class="lt-texto"><b>${e.titulo}</b>${e.detalle ? `<span>${e.detalle}</span>` : ''}</span>
+          </li>`).join('')}
+      </ul>
+      ${p.descripcion ? `<div class="nota-descripcion"><i class="ti ti-notes"></i>${escaparHtml(p.descripcion)}</div>` : ''}
+    </details>`;
+  const detalle = `<div class="panel-accion-ancho">${renderPanelAccionPedido(p, idxActual)}</div>`;
 
   // Oficios de ampliación/cancelación: disponibles desde que hay oficio de autorización
   let oficiosHtml = '';
@@ -424,31 +459,29 @@ function renderCuerpoPedido(p) {
       ${renderMontosContrato(p)}
     </details>`;
 
-  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + oficiosHtml + cantidades + acciones;
+  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + historial + oficiosHtml + cantidades + acciones;
 }
 
 const tamanoArchivo = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 
 function bloqueDocumento(p, titulo, archivo, ruta, textoSubir) {
+  if (archivo) {
+    const icono = /pdf/.test(archivo.mime) ? 'ti-file-type-pdf' : /image/.test(archivo.mime) ? 'ti-photo' : 'ti-file-type-doc';
+    return `
+      <div class="doc-boton">
+        <button type="button" class="doc-ver" data-ver-doc="${ruta}" data-pedido-id="${p.id}" title="Ver ${escaparHtml(archivo.nombre)} (${tamanoArchivo(archivo.tamano)})">
+          <i class="ti ${icono}"></i><span>${titulo}</span><i class="ti ti-eye doc-ojo"></i>
+        </button>
+        <label class="doc-reemplazar" title="Reemplazar ${titulo.toLowerCase()}" aria-label="Reemplazar ${titulo.toLowerCase()}"><i class="ti ti-replace"></i>
+          <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}" hidden>
+        </label>
+      </div>`;
+  }
   return `
-    <div class="bloque-archivo">
-      <div class="subseccion-titulo">${titulo}</div>
-      ${archivo ? `
-        <div class="archivo-fila">
-          <span class="archivo-icono"><i class="ti ${/pdf/.test(archivo.mime) ? 'ti-file-type-pdf' : /image/.test(archivo.mime) ? 'ti-photo' : 'ti-file-type-doc'}"></i></span>
-          <span class="archivo-info"><b>${escaparHtml(archivo.nombre)}</b><small>${tamanoArchivo(archivo.tamano)}</small></span>
-          <button type="button" class="btn btn-secundario btn-sm" data-ver-doc="${ruta}" data-pedido-id="${p.id}"><i class="ti ti-eye"></i> Ver</button>
-          <label class="btn btn-texto btn-sm btn-reemplazar"><i class="ti ti-replace"></i> Reemplazar
-            <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}" hidden>
-          </label>
-        </div>` : `
-        <label class="zona-archivo zona-archivo--detalle">
-          <i class="ti ti-file-upload"></i>
-          <span class="zona-archivo__texto">${textoSubir}</span>
-          <small>PDF, Word o imagen · máximo 150 MB</small>
-          <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}">
-        </label>`}
-    </div>`;
+    <label class="doc-boton doc-subir" title="${textoSubir} · PDF, Word o imagen, máximo 150 MB">
+      <i class="ti ti-file-upload"></i><span>${titulo}</span><small>Subir</small>
+      <input type="file" accept=".pdf,.doc,.docx,image/*" data-subir-doc="${ruta}" data-pedido-id="${p.id}" hidden>
+    </label>`;
 }
 
 // ---------- Panel del paso que sigue ----------

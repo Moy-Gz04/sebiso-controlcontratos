@@ -209,6 +209,13 @@ function adjuntarEventosPedidos() {
     });
   });
 
+  contenedor.querySelectorAll('.detalle-historial').forEach(d => {
+    d.addEventListener('toggle', () => {
+      const id = Number(d.dataset.historialId);
+      if (d.open) tarjetasHistorialAbierto.add(id); else tarjetasHistorialAbierto.delete(id);
+    });
+  });
+
   contenedor.querySelectorAll('.detalle-oficios').forEach(d => {
     d.addEventListener('toggle', () => {
       const id = Number(d.dataset.oficiosId);
