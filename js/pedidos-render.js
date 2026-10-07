@@ -343,7 +343,7 @@ function renderCuerpoPedido(p) {
       const cr = 'CR ' + escaparHtml(f.contrarecibo.noContrarecibo || '');
       return [
         { fecha: f.contrarecibo.fecha, titulo: 'Contrarrecibo ' + escaparHtml(f.contrarecibo.noContrarecibo || ''), detalle: `Cuenta por pagar ${escaparHtml(f.contrarecibo.cuentaPorPagar || '')} · ${fmtMoneda.format(f.contrarecibo.monto || 0)}` },
-        f.factura && { fecha: f.factura.fecha, titulo: cr + ' · factura ' + escaparHtml(f.factura.noFactura), detalle: fmtMoneda.format(f.factura.monto) },
+        f.factura && { fecha: f.factura.fecha, titulo: cr + ' · factura ' + escaparHtml(f.factura.noFactura), detalle: fmtMoneda.format(f.factura.monto), largo: escaparHtml(f.factura.descripcion || '') },
         f.entrega && { fecha: f.entrega.fecha, titulo: cr + ' · entrega', detalle: '' },
         f.oficioContabilidad && { fecha: f.oficioContabilidad.fecha, titulo: cr + ' · a contabilidad', detalle: f.oficioContabilidad.noOficio ? 'Oficio ' + escaparHtml(f.oficioContabilidad.noOficio) : '' },
         f.procesoPago && { fecha: f.procesoPago.fecha, titulo: cr + ' · proceso de pago', detalle: f.procesoPago.monto !== null ? fmtMoneda.format(f.procesoPago.monto) : '' },
@@ -354,17 +354,42 @@ function renderCuerpoPedido(p) {
     p.estatus === 'pagado' && p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Contrato pagado', detalle: 'Proceso concluido', destacado: true }
   ].filter(Boolean).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
 
+  // Historial: las 5 acciones más recientes; "Ver todo" abre la ventana con el detalle completo
+  const recientes = eventos.slice(-5).reverse();
+  const itemHist = (e, conLargo) => `
+    <li class="hist-item ${e.destacado ? 'destacado' : ''}">
+      <span class="hist-punto" aria-hidden="true"></span>
+      <span class="hist-fecha">${fmtFecha(e.fecha)}</span>
+      <div class="hist-texto"><b>${e.titulo}</b>${e.detalle ? `<span>${e.detalle}</span>` : ''}${conLargo && e.largo ? `<small>${e.largo}</small>` : ''}</div>
+    </li>`;
+  // En la ventana: del más reciente al más antiguo, agrupado por mes
+  const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const grupos = [];
+  eventos.slice().reverse().forEach(e => {
+    const f = String(e.fecha || '');
+    const clave = f.slice(0, 7);
+    const titulo = /^\d{4}-\d{2}/.test(f) ? MESES[Number(f.slice(5, 7)) - 1] + ' ' + f.slice(0, 4) : 'Sin fecha';
+    let g = grupos[grupos.length - 1];
+    if (!g || g.clave !== clave) grupos.push(g = { clave, titulo, items: [] });
+    g.items.push(e);
+  });
   const historial = `
     <section class="historial-mitad">
-      <div class="subseccion-titulo">Historial <span class="historial-cuenta">${eventos.length} movimiento${eventos.length === 1 ? '' : 's'}</span></div>
-      <ul class="linea-tiempo linea-compacta">
-        ${eventos.map(e => `
-          <li class="${e.destacado ? 'destacado' : ''}">
-            <span class="lt-fecha">${fmtFecha(e.fecha)}</span>
-            <span class="lt-texto"><b>${e.titulo}</b>${e.detalle ? `<span>${e.detalle}</span>` : ''}</span>
-          </li>`).join('')}
-      </ul>
       ${p.descripcion ? `<div class="nota-descripcion"><i class="ti ti-notes"></i>${escaparHtml(p.descripcion)}</div>` : ''}
+      <div class="hist-encabezado">
+        <div class="subseccion-titulo">Historial <span class="historial-cuenta">últimas ${recientes.length} de ${eventos.length}</span></div>
+        ${eventos.length > 5 ? `<button type="button" class="btn btn-secundario btn-sm" data-abrir-cr="historial-${p.id}"><i class="ti ti-history"></i> Ver todo</button>` : ''}
+      </div>
+      <ol class="hist">${recientes.map(e => itemHist(e, false)).join('')}</ol>
+      <div class="fi-oficio" id="historial-${p.id}" hidden>
+        <div class="fi-oficio-titulo">Historial del contrato</div>
+        <p class="hist-sub">${escaparHtml(p.producto)} · ${eventos.length} movimientos</p>
+        <div class="hist-completo">
+          ${grupos.map(g => `
+            <div class="hist-mes">${g.titulo}</div>
+            <ol class="hist hist-grande">${g.items.map(e => itemHist(e, true)).join('')}</ol>`).join('')}
+        </div>
+      </div>
     </section>`;
   const detalle = `<div class="cuerpo-mitades">${historial}<section>${renderPanelAccionPedido(p, idxActual)}</section></div>`;
 
