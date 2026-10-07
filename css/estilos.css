@@ -1102,3 +1102,40 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 .historial-cuenta { margin-left: 8px; font-size: 11px; font-weight: 500; color: var(--texto-tenue); text-transform: none; letter-spacing: 0; }
 .cuerpo-mitades .seguimiento-cuentas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 1000px) { .cuerpo-mitades { grid-template-columns: 1fr; } }
+
+/* Contrarrecibo: botón de información detallada y su ventana */
+.fi-no-fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.btn-xs { height: 28px; padding: 0 10px; font-size: 12px; gap: 5px; }
+.modal-cr:has(.det-etapas) { max-width: 700px; }
+.modal-cr .fi-oficio:has(.det-etapas) { max-height: 74vh; overflow-y: auto; padding-right: 6px; }
+.det-resumen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.det-resumen > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radio-sm); background: #FCFAF7; border: 1px solid var(--borde); }
+.det-resumen small { font-size: 11px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .4px; }
+.det-resumen b { font-size: 15px; color: var(--texto); font-variant-numeric: tabular-nums; }
+.det-faltan, .det-completo { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radio-sm); font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+.det-faltan { background: #FFF6E5; color: #8A5A00; }
+.det-completo { background: var(--exito-fondo); color: var(--exito); font-weight: 600; }
+.det-faltan .ti, .det-completo .ti { font-size: 17px; margin-top: 1px; }
+.det-etapas { list-style: none; margin: 0; padding: 0; }
+.det-etapa { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding-bottom: 16px; }
+.det-etapa::before { content: ""; position: absolute; left: 14px; top: 30px; bottom: 0; width: 2px; background: var(--borde-fuerte); }
+.det-etapa:last-child::before { display: none; }
+.det-etapa.hecha::before { background: var(--dorado); }
+.det-icono { position: relative; z-index: 1; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: #fff; border: 2px solid var(--borde-fuerte); color: var(--texto-tenue); box-sizing: border-box; }
+.det-etapa.hecha .det-icono { background: var(--dorado); border-color: var(--dorado); color: #fff; }
+.det-etapa.sigue .det-icono { border-color: var(--guinda); color: var(--guinda); box-shadow: 0 0 0 4px rgba(107,15,43,.1); }
+.det-cuerpo { padding: 4px 0 0; min-width: 0; }
+.det-cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.det-cab b { font-size: 14px; color: var(--texto); }
+.det-cab .btn, .det-cab .det-sin-doc { margin-left: auto; }
+.det-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #F2EFEA; color: var(--texto-suave); }
+.det-etapa.hecha .det-chip { background: var(--exito-fondo); color: var(--exito); }
+.det-etapa.sigue .det-chip { background: #FBECEF; color: var(--guinda); }
+.det-sin-doc { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #B42318; }
+.det-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 14px; margin: 0; padding: 10px 12px; border-radius: var(--radio-sm); background: #FCFAF7; border: 1px solid var(--borde); }
+.det-dato { min-width: 0; }
+.det-dato dt { font-size: 11px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .4px; }
+.det-dato dd { margin: 2px 0 0; font-size: 13px; color: var(--texto); font-weight: 600; overflow-wrap: anywhere; }
+.det-vacio { margin: 0; font-size: 12.5px; color: var(--texto-tenue); }
+@media (max-width: 560px) { .det-resumen { grid-template-columns: 1fr; } }
+.det-dato.det-ancho { grid-column: 1 / -1; }

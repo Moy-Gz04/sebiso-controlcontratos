@@ -814,21 +814,49 @@ function renderFacturas(p, idxActual) {
 
     const pasos = ETAPAS_CR.map((e, i) => `<span class="cr-etapa ${i <= idxE ? 'hecha' : i === idxE + 1 ? 'sigue' : ''}" title="${e.texto}"><i class="ti ${i <= idxE ? 'ti-check' : e.icono}"></i>${e.texto}</span>`).join('');
 
-    const meta = [
-      `${fmtFecha(cr.fecha)} · cuenta por pagar ${escaparHtml(cr.cuentaPorPagar || '—')}`,
-      fa && `factura ${escaparHtml(fa.noFactura)} (${fmtFecha(fa.fecha)}, ${fmtMoneda.format(fa.monto)})`,
-      f.entrega && `entrega ${fmtFecha(f.entrega.fecha)}`,
-      oc && `oficio contab. ${escaparHtml(oc.noOficio || 'sin número')} (${fmtFecha(oc.fecha)}${oc.monto !== null ? ', ' + fmtMoneda.format(oc.monto) : ''})`,
-      pp && `pago iniciado ${fmtFecha(pp.fecha)}${pp.monto !== null ? ' (' + fmtMoneda.format(pp.monto) + ')' : ''}`
-    ].filter(Boolean).map(t => `<span>${t}</span>`).join('');
+    // Ventana con toda la información del contrarrecibo, etapa por etapa, y lo que falta
+    const dato = (etq, val) => `<div class="det-dato${etq === 'Descripción' ? ' det-ancho' : ''}"><dt>${etq}</dt><dd>${val || '<em>—</em>'}</dd></div>`;
+    const docDet = (archivo, ruta, texto) => archivo
+      ? `<button type="button" class="btn btn-secundario btn-xs" data-ver-doc="${ruta}" data-pedido-id="${p.id}"><i class="ti ti-file-type-pdf"></i> Ver ${texto}</button>`
+      : `<span class="det-sin-doc"><i class="ti ti-file-off"></i> Sin documento</span>`;
+    const etapasDet = [
+      { titulo: 'Contrarrecibo', icono: 'ti-receipt-2', hecho: true, datos: [dato('No.', escaparHtml(cr.noContrarecibo)), dato('Fecha', fmtFecha(cr.fecha)), dato('Cuenta por pagar', escaparHtml(cr.cuentaPorPagar)), dato('Monto', fmtMoneda.format(cr.monto || 0))], doc: docDet(cr.documento, 'documento-contrarecibo-' + f.id, 'contrarrecibo') },
+      { titulo: 'Factura', icono: 'ti-receipt', hecho: !!fa, datos: fa ? [dato('No.', escaparHtml(fa.noFactura)), dato('Fecha', fmtFecha(fa.fecha)), dato('Monto', fmtMoneda.format(fa.monto)), dato('Descripción', escaparHtml(fa.descripcion))] : [], doc: fa ? docDet(fa.documento, 'documento-factura-' + f.id, 'factura') : '' },
+      { titulo: 'Entrega', icono: 'ti-truck-delivery', hecho: !!f.entrega, datos: f.entrega ? [dato('Fecha', fmtFecha(f.entrega.fecha))] : [], doc: f.entrega ? docDet(f.entrega.documento, 'documento-entrega-' + f.id, 'entrega') : '' },
+      { titulo: 'Contabilidad', icono: 'ti-calculator', hecho: !!oc, datos: oc ? [dato('No. de oficio', escaparHtml(oc.noOficio)), dato('Fecha', fmtFecha(oc.fecha)), dato('Monto', oc.monto !== null ? fmtMoneda.format(oc.monto) : '')] : [], doc: oc ? docDet(oc.documento, 'documento-contab-' + f.id, 'oficio') : '' },
+      { titulo: 'Comprobante de pago', icono: 'ti-cash', hecho: !!pp, datos: pp ? [dato('Fecha', fmtFecha(pp.fecha)), dato('Monto', pp.monto !== null ? fmtMoneda.format(pp.monto) : '')] : [], doc: pp ? docDet(pp.documento, 'documento-procpago-' + f.id, 'comprobante') : '' },
+      { titulo: 'Pagado', icono: 'ti-circle-check', hecho: !!f.pago, datos: f.pago ? [dato('Fecha de pago', fmtFecha(f.pago.fecha))] : [], doc: '' }
+    ];
+    const faltan = etapasDet.filter(e => !e.hecho).map(e => e.titulo);
+    const sinDocs = etapasDet.filter(e => e.hecho && e.doc && e.doc.includes('det-sin-doc')).map(e => e.titulo);
+    const iSig = etapasDet.findIndex(e => !e.hecho);
+    const detalle = `
+      <div class="fi-oficio" id="cr-det-${f.id}" hidden>
+        <div class="fi-oficio-titulo">Contrarrecibo ${escaparHtml(cr.noContrarecibo || '')}</div>
+        <p class="hist-sub">${escaparHtml(p.producto)}</p>
+        <div class="det-resumen">
+          <div><small>Monto</small><b>${fmtMoneda.format(cr.monto || 0)}</b></div>
+          <div><small>Estado</small><b>${f.estado === 'pagada' ? 'Pagado' : (ETAPAS_CR[idxE] ? ETAPAS_CR[idxE].texto : '')}</b></div>
+          <div><small>Avance</small><b>${etapasDet.length - faltan.length} de ${etapasDet.length} etapas</b></div>
+        </div>
+        ${faltan.length || sinDocs.length ? `<div class="det-faltan"><i class="ti ti-alert-triangle"></i><div>${faltan.length ? `<b>Falta:</b> ${faltan.join(' · ')}` : ''}${faltan.length && sinDocs.length ? '<br>' : ''}${sinDocs.length ? `<b>Sin documento:</b> ${sinDocs.join(' · ')}` : ''}</div></div>` : `<div class="det-completo"><i class="ti ti-circle-check"></i> Contrarrecibo completo, con todos sus documentos.</div>`}
+        <ol class="det-etapas">
+          ${etapasDet.map((e, k) => `
+            <li class="det-etapa ${e.hecho ? 'hecha' : k === iSig ? 'sigue' : 'pendiente'}">
+              <span class="det-icono"><i class="ti ${e.hecho ? 'ti-check' : e.icono}"></i></span>
+              <div class="det-cuerpo">
+                <div class="det-cab"><b>${e.titulo}</b><span class="det-chip">${e.hecho ? 'Registrado' : k === iSig ? 'Sigue' : 'Pendiente'}</span>${e.doc}</div>
+                ${e.datos.length ? `<dl class="det-datos">${e.datos.join('')}</dl>` : `<p class="det-vacio">${k === iSig ? 'Es el siguiente paso de este contrarrecibo.' : 'Aún no se registra.'}</p>`}
+              </div>
+            </li>`).join('')}
+        </ol>
+      </div>`;
 
     return `
       <li class="factura-item ${CLASE_CR[f.estado]}">
         <div class="fi-principal">
-          <span class="fi-no">CR ${escaparHtml(cr.noContrarecibo || '')}</span>
+          <span class="fi-no-fila"><span class="fi-no">CR ${escaparHtml(cr.noContrarecibo || '')}</span><button type="button" class="btn btn-secundario btn-xs" data-abrir-cr="cr-det-${f.id}"><i class="ti ti-list-details"></i> Ver información detallada</button></span>
           <span class="fi-desc">${fa ? escaparHtml(fa.descripcion || '') : 'Sin factura aún'}</span>
-          <span class="fi-meta">${meta}</span>
-          <span class="cr-etapas">${pasos}</span>
           ${faltaOficio ? `<button type="button" class="fi-falta-oficio" data-abrir-cr="${idOf}"><i class="ti ti-alert-triangle"></i> Falta el oficio de contabilidad · completar</button>` : ''}
         </div>
         <span class="fi-monto">${fmtMoneda.format(cr.monto || 0)}</span>
@@ -846,6 +874,7 @@ function renderFacturas(p, idxActual) {
           ${f.estado !== 'pagada' ? `<button type="button" class="btn btn-texto btn-sm" data-abrir-cr="${idEdit}"><i class="ti ti-pencil"></i> Editar contrarrecibo</button>` : ''}
         </div>
         ${f.estado !== 'pagada' ? `<button type="button" class="btn-icono" data-eliminar-factura="${f.id}" data-pedido-id="${p.id}" title="Eliminar contrarrecibo" aria-label="Eliminar ${etiqueta}"><i class="ti ti-trash"></i></button>` : ''}
+        ${detalle}
         ${sig ? formCR(f, idSig, sig.ruta, sig.doc, sig.titulo, sig.campos, sig.boton) : ''}
         ${f.estado !== 'pagada' ? formCR(f, idEdit, 'contrarecibo', '', 'Editar ' + etiqueta, camposContrarecibo(valor(cr.monto), hoy, cr), 'Guardar cambios') : ''}
         ${faltaOficio ? formCR(f, idOf, 'oficio-contabilidad', 'documento-contab', 'Oficio para contabilidad · ' + etiqueta, `
