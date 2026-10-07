@@ -118,33 +118,9 @@ const StorePedidos = {
       const datos = await peticion(`/pedidos/${id}/enlace/${ruta}`, { method: 'POST' });
       const url = API_BASE_URL + datos.ruta;
       if (!ventana) { window.open(url, '_blank'); return; }
-      try {
-        // Se descarga aquí para mostrar el avance y luego se muestra en la misma pestaña
-        const r = await fetch(url);
-        if (!r.ok || !r.body) throw new Error('descarga');
-        const total = Number(r.headers.get('Content-Length')) || 0;
-        const lector = r.body.getReader();
-        const partes = []; let recibido = 0;
-        for (;;) {
-          const { done, value } = await lector.read();
-          if (done) break;
-          partes.push(value); recibido += value.length;
-          if (total) real = recibido / total * 100;
-        }
-        clearInterval(avance); pintar(100);
-        const blob = new Blob(partes, { type: r.headers.get('Content-Type') || 'application/pdf' });
-        const enlace = URL.createObjectURL(blob);
-        ventana.document.title = 'Documento';
-        ventana.document.body.innerHTML = '';
-        const marco = ventana.document.createElement('iframe');
-        marco.src = enlace;
-        marco.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0';
-        ventana.document.body.appendChild(marco);
-      } catch (e) {
-        // Si no se pudo descargar aquí, la pestaña abre el archivo directo del servidor
-        clearInterval(avance);
-        ventana.location.href = url;
-      }
+      // La pestaña abre el archivo directo para que Chrome lo muestre en su visor
+      // (descargar, imprimir, zoom); mientras responde sigue la barra de carga.
+      ventana.location.href = url;
     } catch (err) {
       clearInterval(avance);
       if (ventana) ventana.close();
