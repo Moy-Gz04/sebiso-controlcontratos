@@ -44,7 +44,7 @@
   }
 
   function animar(t) {
-    const login = document.getElementById('pantalla-login');
+    const login = document.querySelector('#pantalla-login, .login-eclipse');
     if (login && login.offsetParent !== null) {             // solo mientras el login está visible
       if (!ancho || lienzo.clientWidth !== ancho) crear();
       pintar(t);
