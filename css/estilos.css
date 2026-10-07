@@ -1185,3 +1185,6 @@ body { position: relative; isolation: isolate; }
 /* Zona de archivo con un archivo arrastrado encima */
 .arrastrando { outline: 2px dashed var(--guinda) !important; outline-offset: 3px; background-color: #FBF3E6 !important; }
 .zona-archivo.arrastrando .ti { color: var(--guinda); }
+
+/* Logo del Gobierno de Hidalgo en el encabezado: sin círculo ni marco */
+.brand-logo { border: 0; border-radius: 0; background: none; padding: 0; box-shadow: none; }
