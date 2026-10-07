@@ -1051,3 +1051,12 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 .fi-accion { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
 .factura-item .fi-oficio { grid-column: 1 / -1; }
 @media (max-width: 1000px) { .fi-accion { justify-content: flex-start; } }
+
+/* Historial y panel del paso actual: mitad y mitad */
+.cuerpo-mitades { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-bottom: 24px; align-items: start; }
+.historial-mitad .linea-compacta { max-height: 300px; overflow-y: auto; padding: 4px 6px 0 22px; }
+.historial-mitad .linea-compacta li { grid-template-columns: 78px minmax(0, 1fr); }
+.historial-mitad .nota-descripcion { margin-top: 10px; max-height: 120px; overflow-y: auto; }
+.historial-cuenta { margin-left: 8px; font-size: 11px; font-weight: 500; color: var(--texto-tenue); text-transform: none; letter-spacing: 0; }
+.cuerpo-mitades .seguimiento-cuentas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1000px) { .cuerpo-mitades { grid-template-columns: 1fr; } }

@@ -357,13 +357,9 @@ function renderCuerpoPedido(p) {
     p.estatus === 'pagado' && p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Contrato pagado', detalle: 'Proceso concluido', destacado: true }
   ].filter(Boolean).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
 
-  const ultimoEv = eventos[eventos.length - 1];
   const historial = `
-    <details class="detalle-montos detalle-historial" ${tarjetasHistorialAbierto.has(p.id) ? 'open' : ''} data-historial-id="${p.id}">
-      <summary>
-        <span class="dm-titulo"><i class="ti ti-chevron-right"></i> Historial</span>
-        <span class="dm-resumen">${eventos.length} movimiento${eventos.length === 1 ? '' : 's'}${ultimoEv ? ` · último: <b>${ultimoEv.titulo}</b> ${fmtFecha(ultimoEv.fecha)}` : ''}</span>
-      </summary>
+    <section class="historial-mitad">
+      <div class="subseccion-titulo">Historial <span class="historial-cuenta">${eventos.length} movimiento${eventos.length === 1 ? '' : 's'}</span></div>
       <ul class="linea-tiempo linea-compacta">
         ${eventos.map(e => `
           <li class="${e.destacado ? 'destacado' : ''}">
@@ -372,8 +368,8 @@ function renderCuerpoPedido(p) {
           </li>`).join('')}
       </ul>
       ${p.descripcion ? `<div class="nota-descripcion"><i class="ti ti-notes"></i>${escaparHtml(p.descripcion)}</div>` : ''}
-    </details>`;
-  const detalle = `<div class="panel-accion-ancho">${renderPanelAccionPedido(p, idxActual)}</div>`;
+    </section>`;
+  const detalle = `<div class="cuerpo-mitades">${historial}<section>${renderPanelAccionPedido(p, idxActual)}</section></div>`;
 
   // Oficios de ampliación/cancelación: disponibles desde que hay oficio de autorización
   let oficiosHtml = '';
@@ -459,7 +455,7 @@ function renderCuerpoPedido(p) {
       ${renderMontosContrato(p)}
     </details>`;
 
-  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + historial + oficiosHtml + cantidades + acciones;
+  return recorrido + `<div class="bloque-documentos">${docs}</div>` + detalle + renderFacturas(p, idxActual) + oficiosHtml + cantidades + acciones;
 }
 
 const tamanoArchivo = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
