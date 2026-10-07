@@ -1139,3 +1139,12 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 .det-vacio { margin: 0; font-size: 12.5px; color: var(--texto-tenue); }
 @media (max-width: 560px) { .det-resumen { grid-template-columns: 1fr; } }
 .det-dato.det-ancho { grid-column: 1 / -1; }
+
+/* Faltantes en el recorrido: guinda institucional en lugar de rojo */
+.rec-paso.faltan .rec-circulo { background: var(--guinda); border-color: var(--guinda); color: #fff; }
+.rec-paso.faltan .rec-label, .rec-paso.faltan .rec-label small { color: var(--guinda); }
+@keyframes faltanPulsoGuinda { 0%, 100% { box-shadow: 0 0 0 0 rgba(107, 15, 43, .35); opacity: 1; } 50% { box-shadow: 0 0 0 7px rgba(107, 15, 43, .12); opacity: .7; } }
+@media (prefers-reduced-motion: no-preference) { .rec-paso.faltan .rec-circulo { animation: faltanPulsoGuinda 1.1s ease-in-out infinite; } }
+
+/* Botones de documento de la ventana de detalle: todos del mismo tamaño */
+.det-cab .btn-xs, .det-cab .det-sin-doc { width: 172px; justify-content: center; box-sizing: border-box; }
