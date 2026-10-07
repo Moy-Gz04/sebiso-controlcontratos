@@ -147,19 +147,40 @@ function adjuntarEventosPedidos() {
   contenedor.querySelectorAll('[data-eliminar-pedido]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.eliminarPedido);
-      pedirConfirmacion({
-        titulo: 'Eliminar contrato',
-        mensaje: '¿Quieres eliminar este contrato por completo? Esta acción no se puede deshacer.',
-        textoConfirmar: 'Sí, eliminar',
-        peligro: true,
-        accion: async () => {
-          try {
-            await StorePedidos.eliminar(id);
-            tarjetasPedidoExpandidas.delete(id);
-            await renderListadoPedidos();
-            mostrarAviso('Contrato eliminado.');
-          } catch (err) { mostrarAviso(err.message, true); }
-        }
+      const p = pedidosCache.find(x => x.id === id) || {};
+      // Ventana de confirmación: hay que escribir CONFIRMO
+      const panel = document.createElement('div');
+      panel.className = 'fi-oficio';
+      panel.hidden = true;
+      panel.innerHTML = `
+        <form class="form-confirmo">
+          <div class="fi-oficio-titulo">Eliminar contrato</div>
+          <p class="confirmo-texto">Se eliminará <b>${escaparHtml((p.noContrato ? 'No. ' + p.noContrato + ' · ' : '') + (p.producto || ''))}</b> con todos sus contrarrecibos y documentos. Esta acción no se puede deshacer.</p>
+          <label>Para continuar escribe <b>CONFIRMO</b>
+            <input type="text" name="confirmo" autocomplete="off" spellcheck="false" required>
+          </label>
+          <div class="ppa-botones">
+            <button type="submit" class="btn btn-sm btn-eliminar" disabled><i class="ti ti-trash"></i> Eliminar contrato</button>
+            <button type="button" class="btn btn-texto btn-sm" data-cerrar>Cancelar</button>
+          </div>
+        </form>`;
+      document.body.appendChild(panel);
+      abrirModalCR(panel);
+      const form = panel.querySelector('form');
+      const enviar = form.querySelector('button[type="submit"]');
+      form.confirmo.addEventListener('input', () => { enviar.disabled = form.confirmo.value.trim().toUpperCase() !== 'CONFIRMO'; });
+      panel.querySelector('[data-cerrar]').addEventListener('click', () => { cerrarModalCR(); panel.remove(); });
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (form.confirmo.value.trim().toUpperCase() !== 'CONFIRMO') return;
+        enviar.disabled = true;
+        try {
+          await StorePedidos.eliminar(id);
+          cerrarModalCR(); panel.remove();
+          tarjetasPedidoExpandidas.delete(id);
+          await renderListadoPedidos();
+          mostrarAviso('Contrato eliminado.');
+        } catch (err) { enviar.disabled = false; mostrarAviso(err.message, true); }
       });
     });
   });

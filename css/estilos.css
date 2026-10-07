@@ -1151,3 +1151,22 @@ label.chip-doc { display: inline-flex !important; flex-direction: row !important
 
 /* No. de contrato junto al título de la tarjeta */
 .tc-no-contrato { display: inline-flex; align-items: center; margin-right: 8px; padding: 2px 8px; border-radius: 6px; background: var(--guinda); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .3px; font-variant-numeric: tabular-nums; vertical-align: 2px; white-space: nowrap; }
+
+/* Datos del contrato en lista */
+.desc-contrato { margin: 0 0 20px; padding: 14px 16px; border-radius: var(--radio-sm); background: #fff; border: 1px solid var(--borde); }
+.desc-contrato .subseccion-titulo { margin: 0 0 8px; }
+.desc-contrato ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.desc-contrato li { position: relative; padding-left: 14px; font-size: 13px; line-height: 1.45; display: flex; flex-wrap: wrap; column-gap: 6px; }
+.desc-contrato li::before { content: ""; position: absolute; left: 0; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--dorado); }
+.desc-contrato li span { color: var(--texto-suave); }
+.desc-contrato li b { font-weight: 600; color: var(--texto); }
+.desc-contrato p { margin: 0; font-size: 13px; color: var(--texto-suave); }
+/* Pie de la tarjeta: botones iguales; eliminar en vino */
+.tc-acciones .btn-secundario { min-width: 0; }
+.btn-eliminar { background: var(--guinda); border: 1px solid var(--guinda); color: #fff; }
+.btn-eliminar:hover:not(:disabled) { background: var(--guinda-oscuro); border-color: var(--guinda-oscuro); }
+.btn-eliminar:disabled { opacity: .45; cursor: not-allowed; }
+/* Confirmación con CONFIRMO */
+.confirmo-texto { margin: -6px 0 14px; font-size: 13.5px; color: var(--texto-suave); line-height: 1.5; }
+.form-confirmo label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--texto-suave); }
+.form-confirmo input[name="confirmo"] { letter-spacing: 1.5px; font-weight: 700; text-transform: uppercase; }

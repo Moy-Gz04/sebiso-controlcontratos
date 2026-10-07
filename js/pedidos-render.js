@@ -221,8 +221,6 @@ function renderTarjetaPedido(p, i) {
           <span class="tc-meta">
             <span><i class="ti ti-package"></i>${escaparHtml(p.cantidad)} ${escaparHtml(p.unidadMedida || '')}</span>
             <span><i class="ti ti-building-store"></i>${escaparHtml(p.proveedor || 'Sin proveedor')}</span>
-            ${p.areaSolicitante ? `<span><i class="ti ti-users"></i>${escaparHtml(p.areaSolicitante)}</span>` : ''}
-            ${p.contrato ? `<span class="tc-adjunto"><i class="ti ti-paperclip"></i>Contrato adjunto</span>` : `<span class="tc-sin-adjunto"><i class="ti ti-alert-circle"></i>Sin archivo de contrato</span>`}
           </span>
         </span>
         <span class="tc-lado">
@@ -271,6 +269,20 @@ function renderMontosContrato(p) {
       ${fila('Monto vigente', m.vigente, '', 'total')}
     </div>
     ${avisos.map(a => `<p class="aviso-monto"><i class="ti ti-alert-triangle"></i>${a}</p>`).join('')}`;
+}
+
+// ---------- Descripción del contrato como lista ----------
+// "Contrato … No. 594/2025 · Requisición 1715/2025 · Proveedor RFC …" → un punto por dato,
+// con la etiqueta (lo que va antes del primer número o dos puntos) resaltada.
+function renderDescripcion(texto) {
+  if (!texto) return '';
+  const partes = String(texto).split(/\s+·\s+|\n+/).map(t => t.trim().replace(/\.$/, '')).filter(Boolean);
+  if (partes.length < 2) return `<div class="desc-contrato"><p>${escaparHtml(texto)}</p></div>`;
+  const item = t => {
+    const m = /^([^\d:]{3,40}?)(?::\s*|\s+)(?=[\dA-Z$])(.*)$/.exec(t);
+    return m && m[2] ? `<li><span>${escaparHtml(m[1].trim())}</span><b>${escaparHtml(m[2])}</b></li>` : `<li><b>${escaparHtml(t)}</b></li>`;
+  };
+  return `<div class="desc-contrato"><div class="subseccion-titulo">Datos del contrato</div><ul>${partes.map(item).join('')}</ul></div>`;
 }
 
 // ---------- Recorrido del contrato ----------
@@ -377,7 +389,7 @@ function renderCuerpoPedido(p) {
   });
   const historial = `
     <section class="historial-mitad">
-      ${p.descripcion ? `<div class="nota-descripcion"><i class="ti ti-notes"></i>${escaparHtml(p.descripcion)}</div>` : ''}
+      ${renderDescripcion(p.descripcion)}
       <div class="hist-encabezado">
         <div class="subseccion-titulo">Historial <span class="historial-cuenta">últimas ${recientes.length} de ${eventos.length}</span></div>
         ${eventos.length > 5 ? `<button type="button" class="btn btn-secundario btn-sm" data-abrir-cr="historial-${p.id}"><i class="ti ti-history"></i> Ver todo</button>` : ''}
@@ -458,9 +470,9 @@ function renderCuerpoPedido(p) {
   const acciones = `
     <div class="tc-acciones">
       ${accionReduccion}
-      <button type="button" class="btn btn-primario btn-sm" data-abrir-cr="editar-${p.id}"><i class="ti ti-pencil"></i> Editar información</button>
+      <button type="button" class="btn btn-secundario btn-sm" data-abrir-cr="editar-${p.id}"><i class="ti ti-pencil"></i> Editar información</button>
       ${renderEditarTodo(p)}
-      <button type="button" class="btn btn-texto btn-sm" data-eliminar-pedido="${p.id}"><i class="ti ti-trash"></i> Eliminar contrato</button>
+      <button type="button" class="btn btn-sm btn-eliminar" data-eliminar-pedido="${p.id}"><i class="ti ti-trash"></i> Eliminar contrato</button>
     </div>`;
 
   // Documentos: el contrato siempre; los demás cuando su paso ya se registró
@@ -906,7 +918,7 @@ function renderFacturas(p, idxActual) {
 
   return `
     <div class="bloque-facturas" id="facturas-${p.id}">
-      <div class="subseccion-titulo">Contrarrecibos ${textoFaltan(m) && (p.facturas || []).length ? `<span class="alerta-faltan" role="status"><i class="ti ti-alert-triangle"></i>${textoFaltan(m)}</span>` : ''}<span class="facturas-resumen">${m.numContrarecibos} · ${fmtMoneda.format(m.contrarecibos)}${m.disponible !== null ? ' de ' + fmtMoneda.format(m.disponible) : ''}</span></div>
+      <div class="subseccion-titulo">Contrarrecibos ${textoFaltan(m) && (p.facturas || []).length ? `<span class="alerta-faltan" role="status" title="${textoFaltan(m)}"><i class="ti ti-alert-triangle"></i>Falta ${fmtMoneda.format(Math.max(m.porRegistrar || 0, m.porFacturar || 0))}</span>` : ''}<span class="facturas-resumen">${m.disponible !== null ? `${Math.round(m.contrarecibos / (m.disponible || 1) * 100)}% cubierto` : m.numContrarecibos}</span></div>
       ${filas ? `<ul class="lista-facturas">${filas}</ul>` : '<p class="texto-suave">Aún no hay contrarrecibos.</p>'}
       ${formNueva}
     </div>`;
