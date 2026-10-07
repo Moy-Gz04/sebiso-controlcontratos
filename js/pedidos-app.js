@@ -298,12 +298,18 @@ function adjuntarEventosPedidos() {
   // Editar toda la información: los nombres de los campos dicen dónde va cada dato
   // ("autorizacion.fecha", "cr.22.factura.monto", "of.5.folio")
   contenedor.querySelectorAll('.form-editar-todo').forEach(form => {
+    // Nombre del archivo elegido para sustituir
+    form.querySelectorAll('input[type="file"][data-doc-ruta]').forEach(inp => inp.addEventListener('change', () => {
+      const et = inp.closest('.zona-archivo').querySelector('[data-nombre-archivo]');
+      et.textContent = inp.files[0] ? inp.files[0].name : et.dataset.textoOriginal;
+    }));
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = Number(form.dataset.pedidoId);
       const boton = form.querySelector('button[type="submit"]');
       const cuerpo = {}, crs = {}, ofs = {};
       form.querySelectorAll('input[name], select[name], textarea[name]').forEach(el => {
+        if (el.type === 'file') return;
         const partes = el.name.split('.');
         const valor = el.value.trim();
         if (partes[0] === 'cr') { const c = crs[partes[1]] = crs[partes[1]] || { id: Number(partes[1]) }; (c[partes[2]] = c[partes[2]] || {})[partes[3]] = valor; }
@@ -314,10 +320,20 @@ function adjuntarEventosPedidos() {
       cuerpo.oficios = Object.values(ofs);
       try {
         boton.disabled = true;
+        // Documentos a sustituir (los que se eligieron en la ventana)
+        const docs = [...form.querySelectorAll('input[type="file"][data-doc-ruta]')].filter(i => i.files[0]);
+        for (const i of docs) if (i.files[0].size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error('El documento ' + i.files[0].name + ' pesa más de ' + MAX_CONTRATO_MB + ' MB.');
         await StorePedidos.editarTodo(id, cuerpo);
+        let fallidos = [];
+        for (const i of docs) {
+          boton.textContent = 'Subiendo ' + i.files[0].name + '…';
+          try { await StorePedidos.subirDocumento(id, i.dataset.docRuta, i.files[0]); }
+          catch (err) { fallidos.push(i.files[0].name); }
+        }
         tarjetasPedidoExpandidas.add(id);
         await renderListadoPedidos();
-        mostrarAviso('Cambios guardados.');
+        if (fallidos.length) mostrarAviso('Cambios guardados, pero no se pudo subir: ' + fallidos.join(', ') + '.', true);
+        else mostrarAviso(docs.length ? 'Cambios y documentos guardados.' : 'Cambios guardados.');
       } catch (err) { boton.disabled = false; mostrarAviso(err.message, true); }
     });
   });

@@ -532,31 +532,42 @@ function renderEditarTodo(p) {
       ${cuerpo}
     </fieldset>`;
   const fila = (...campos) => `<div class="ed-fila">${campos.join('')}</div>`;
+  // Sustituir un documento: muestra el actual y permite elegir otro (se sube al guardar)
+  const dc = (etq, ruta, archivo) => `
+    <div class="ed-doc">
+      <span class="ed-doc-actual"><i class="ti ti-file-type-pdf"></i> ${etq}: <b>${archivo ? escaparHtml(archivo.nombre) : 'sin documento'}</b></span>
+      <label class="zona-archivo zona-archivo--opcional ed-doc-zona">
+        <i class="ti ti-replace"></i>
+        <span class="zona-archivo__texto" data-nombre-archivo data-texto-original="${archivo ? 'Sustituir documento' : 'Agregar documento'}">${archivo ? 'Sustituir documento' : 'Agregar documento'}</span>
+        <input type="file" data-doc-ruta="${ruta}" accept=".pdf,.doc,.docx,image/*">
+      </label>
+    </div>`;
   const partes = [];
   partes.push(sec('ti-file-description', 'Datos del contrato', '', `
     ${fila(t('datos.noContrato', 'No. de contrato', p.noContrato, false), t('datos.producto', 'Producto o servicio', p.producto))}
     ${fila(t('datos.proveedor', 'Proveedor', p.proveedor, false), t('datos.areaSolicitante', 'Área solicitante', p.areaSolicitante, false))}
     ${fila(`<label>Cantidad<input type="number" name="datos.cantidad" step="any" min="0" value="${v(p.cantidad)}" required></label>`, t('datos.unidadMedida', 'Unidad', p.unidadMedida, false), mo('datos.montoEstimado', 'Monto contratado', p.montoEstimado), fe('datos.fechaSolicitud', 'Fecha del contrato', p.fechaSolicitud))}
-    <label>Descripción<textarea name="datos.descripcion" rows="3">${v(p.descripcion)}</textarea></label>`));
+    <label>Descripción<textarea name="datos.descripcion" rows="3">${v(p.descripcion)}</textarea></label>
+    ${dc('Contrato', 'contrato', p.contrato)}`));
   if (p.autorizacion) partes.push(sec('ti-file-certificate', 'Oficio de autorización', '', fila(
-    t('autorizacion.noOficio', 'No. de oficio', p.autorizacion.noOficio), mo('autorizacion.monto', 'Monto autorizado', p.autorizacion.monto), fe('autorizacion.fecha', 'Fecha', p.autorizacion.fecha))));
+    t('autorizacion.noOficio', 'No. de oficio', p.autorizacion.noOficio), mo('autorizacion.monto', 'Monto autorizado', p.autorizacion.monto), fe('autorizacion.fecha', 'Fecha', p.autorizacion.fecha)) + dc('Oficio de autorización', 'documento-autorizacion', p.documentoAutorizacion)));
   if (p.oficio) partes.push(sec('ti-adjustments-dollar', 'Oficio de adecuación', '', fila(
-    t('adecuacion.folio', 'Folio', p.oficio.folio), mo('adecuacion.monto', 'Nuevo monto autorizado', p.oficio.monto), fe('adecuacion.fecha', 'Fecha', p.oficio.fecha))));
+    t('adecuacion.folio', 'Folio', p.oficio.folio), mo('adecuacion.monto', 'Nuevo monto autorizado', p.oficio.monto), fe('adecuacion.fecha', 'Fecha', p.oficio.fecha)) + dc('Oficio de adecuación', 'documento-adecuacion', p.documentoAdecuacion)));
   (p.oficios || []).forEach(of => partes.push(sec('ti-file-plus', 'Oficio de ' + (of.tipo === 'cancelacion' ? 'cancelación' : 'ampliación'), escaparHtml(of.folio), fila(
     `<label>Tipo<select name="of.${of.id}.tipo"><option value="ampliacion" ${of.tipo === 'ampliacion' ? 'selected' : ''}>Ampliación</option><option value="cancelacion" ${of.tipo === 'cancelacion' ? 'selected' : ''}>Cancelación</option></select></label>`,
     t(`of.${of.id}.folio`, 'Folio', of.folio), mo(`of.${of.id}.monto`, 'Monto', of.monto), fe(`of.${of.id}.fecha`, 'Fecha', of.fecha)))));
   (p.facturas || []).forEach(f => {
     const cr = f.contrarecibo || {}, k = 'cr.' + f.id + '.';
     const sub = (titulo, cuerpo) => `<div class="ed-sub"><div class="ed-sub-titulo">${titulo}</div>${cuerpo}</div>`;
-    let cuerpo = sub('Contrarrecibo', fila(t(k + 'contrarecibo.noContrarecibo', 'No. de contrarrecibo', cr.noContrarecibo), fe(k + 'contrarecibo.fecha', 'Fecha', cr.fecha), t(k + 'contrarecibo.cuentaPorPagar', 'Cuenta por pagar', cr.cuentaPorPagar), mo(k + 'contrarecibo.monto', 'Monto', cr.monto)));
-    if (f.factura) cuerpo += sub('Factura', fila(t(k + 'factura.noFactura', 'No. de factura', f.factura.noFactura), fe(k + 'factura.fecha', 'Fecha', f.factura.fecha), mo(k + 'factura.monto', 'Monto', f.factura.monto)) + `<label>Descripción<input type="text" name="${k}factura.descripcion" value="${v(f.factura.descripcion)}" required></label>`);
-    if (f.entrega) cuerpo += sub('Entrega', fila(fe(k + 'entrega.fecha', 'Fecha de entrega', f.entrega.fecha)));
-    if (f.oficioContabilidad) cuerpo += sub('Contabilidad', fila(t(k + 'contabilidad.noOficio', 'No. de oficio', f.oficioContabilidad.noOficio), fe(k + 'contabilidad.fecha', 'Fecha', f.oficioContabilidad.fecha), mo(k + 'contabilidad.monto', 'Monto', f.oficioContabilidad.monto)));
-    if (f.procesoPago) cuerpo += sub('Comprobante de pago', fila(fe(k + 'procesoPago.fecha', 'Fecha', f.procesoPago.fecha), mo(k + 'procesoPago.monto', 'Monto', f.procesoPago.monto)));
-    if (f.pago) cuerpo += sub('Pagado', fila(fe(k + 'pago.fecha', 'Fecha de pago', f.pago.fecha)));
+    let cuerpo = sub('Contrarrecibo', fila(t(k + 'contrarecibo.noContrarecibo', 'No. de contrarrecibo', cr.noContrarecibo), fe(k + 'contrarecibo.fecha', 'Fecha', cr.fecha), t(k + 'contrarecibo.cuentaPorPagar', 'Cuenta por pagar', cr.cuentaPorPagar), mo(k + 'contrarecibo.monto', 'Monto', cr.monto)) + dc('Contrarrecibo', 'documento-contrarecibo-' + f.id, cr.documento));
+    if (f.factura) cuerpo += sub('Factura', fila(t(k + 'factura.noFactura', 'No. de factura', f.factura.noFactura), fe(k + 'factura.fecha', 'Fecha', f.factura.fecha), mo(k + 'factura.monto', 'Monto', f.factura.monto)) + `<label>Descripción<input type="text" name="${k}factura.descripcion" value="${v(f.factura.descripcion)}" required></label>` + dc('Factura', 'documento-factura-' + f.id, f.factura.documento));
+    if (f.entrega) cuerpo += sub('Entrega', fila(fe(k + 'entrega.fecha', 'Fecha de entrega', f.entrega.fecha)) + dc('Entrega', 'documento-entrega-' + f.id, f.entrega.documento));
+    if (f.oficioContabilidad) cuerpo += sub('Contabilidad', fila(t(k + 'contabilidad.noOficio', 'No. de oficio', f.oficioContabilidad.noOficio), fe(k + 'contabilidad.fecha', 'Fecha', f.oficioContabilidad.fecha), mo(k + 'contabilidad.monto', 'Monto', f.oficioContabilidad.monto)) + dc('Oficio de contabilidad', 'documento-contab-' + f.id, f.oficioContabilidad.documento));
+    if (f.procesoPago) cuerpo += sub('Comprobante de pago', fila(fe(k + 'procesoPago.fecha', 'Fecha', f.procesoPago.fecha), mo(k + 'procesoPago.monto', 'Monto', f.procesoPago.monto)) + dc('Comprobante de pago', 'documento-procpago-' + f.id, f.procesoPago.documento));
+    if (f.pago) cuerpo += sub('Pagado', fila(fe(k + 'pago.fecha', 'Fecha de pago', f.pago.fecha)) + (f.pago.documento ? dc('Pago', 'documento-pago-' + f.id, f.pago.documento) : ''));
     partes.push(sec('ti-receipt-2', 'Contrarrecibo ' + escaparHtml(cr.noContrarecibo || ''), fmtMoneda.format(cr.monto || 0), cuerpo));
   });
-  if (p.reduccion) partes.push(sec('ti-arrow-down-circle', 'Reducción líquida', '', fila(mo('reduccion.montoEjercido', 'Nuevo autorizado', p.reduccion.montoEjercido), fe('reduccion.fecha', 'Fecha', p.reduccion.fecha))));
+  if (p.reduccion) partes.push(sec('ti-arrow-down-circle', 'Reducción líquida', '', fila(mo('reduccion.montoEjercido', 'Nuevo autorizado', p.reduccion.montoEjercido), fe('reduccion.fecha', 'Fecha', p.reduccion.fecha)) + dc('Reducción líquida', 'documento-reduccion', p.documentoReduccion)));
   return `
     <div class="fi-oficio" id="editar-${p.id}" hidden>
       <form class="form-editar-todo" data-pedido-id="${p.id}">
