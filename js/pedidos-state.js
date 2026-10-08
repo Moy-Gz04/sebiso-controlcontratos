@@ -33,7 +33,10 @@ function montosDelContrato(p) {
   const autorizado = calcularMontoDisponiblePedido(p);
   const crs = p.facturas || [];
   const suma = (lista, fn) => Math.round(lista.reduce((t, f) => t + Number(fn(f) || 0), 0) * 100) / 100;
-  const contrarecibos = suma(crs, f => f.contrarecibo && f.contrarecibo.monto);
+  const conCR = crs.filter(f => f.contrarecibo);
+  const contrarecibos = suma(conCR, f => f.contrarecibo.monto);
+  // lo que ampara cada registro: su factura (o su contrarrecibo si es anterior y aún no tiene factura)
+  const amparado = suma(crs, f => f.montoAmparado !== undefined ? f.montoAmparado : (f.factura ? f.factura.monto : f.contrarecibo && f.contrarecibo.monto));
   const conFactura = crs.filter(f => f.factura);
   const facturado = suma(conFactura, f => f.factura.monto);
   const pagado = suma(crs.filter(f => f.estado === 'pagada' && f.factura), f => f.factura.monto);
@@ -44,13 +47,15 @@ function montosDelContrato(p) {
     contratado: Number(p.montoEstimado || 0),
     autorizado,
     contrarecibos,
-    numContrarecibos: crs.length,
+    numContrarecibos: conCR.length,
+    amparado,
+    numRegistros: crs.length,
     facturado,
     numFacturas: conFactura.length,
     pagado,
     disponible,
-    // lo que aún se puede amparar con contrarrecibos nuevos
-    porRegistrar: disponible !== null ? Math.max(0, Math.round((disponible - contrarecibos) * 100) / 100) : null,
+    // lo que aún se puede amparar con facturas nuevas
+    porRegistrar: disponible !== null ? Math.max(0, Math.round((disponible - amparado) * 100) / 100) : null,
     // lo que aún falta facturar del disponible
     porFacturar: disponible !== null ? Math.max(0, Math.round((disponible - facturado) * 100) / 100) : null,
     ejercido,

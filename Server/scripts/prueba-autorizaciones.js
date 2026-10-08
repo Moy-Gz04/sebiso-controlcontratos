@@ -35,8 +35,8 @@ const hoy = '2026-10-08';
     const [o1, o2, o3] = r.status === 400 ? (await api('GET', '/pedidos')).pedidos.find(p => p.id === A).autorizaciones : [];
 
     r = await api('PUT', `/pedidos/${A}/omitir/oficio-adecuacion`);
-    r = await api('POST', `/pedidos/${A}/facturas`, { noContrarecibo: 'CR-1', fecha: hoy, cuentaPorPagar: 'C', monto: 90000 });
-    check(r.ok, 'contrarrecibo de 90,000 dentro del autorizado sumado');
+    r = await api('POST', `/pedidos/${A}/facturas`, { noFactura: 'F-1', fecha: hoy, descripcion: 'd', monto: 90000 });
+    check(r.ok, 'factura de 90,000 dentro del autorizado sumado');
 
     r = await api('PUT', `/pedidos/${A}/reduccion`, { montoEjercido: 50000, fecha: hoy });
     check(r.status === 400 && /Elige/.test(r.mensaje), 'con varios oficios pide elegir a cuál aplica la reducción');
@@ -47,12 +47,12 @@ const hoy = '2026-10-08';
     check(r.ok && p.autorizaciones.find(a => a.id === o1.id).reduccion.montoEjercido === 50000, 'reducción del oficio 1: queda en 50,000');
     check(p.reduccion && p.reduccion.montoEjercido === 95000, 'el contrato queda en 50,000 + 40,000 + 5,000 = 95,000');
     r = await api('PUT', `/pedidos/${A}/reduccion`, { autorizacionId: o2.id, montoEjercido: 30000, fecha: hoy });
-    check(r.status === 400 && /contrarrecibos/.test(r.mensaje), 'no deja reducir por debajo de los contrarrecibos (85,000 < 90,000)');
+    check(r.status === 400 && /facturado/.test(r.mensaje), 'no deja reducir por debajo de lo facturado (85,000 < 90,000)');
     r = await api('PUT', `/pedidos/${A}/reduccion`, { autorizacionId: o2.id, montoEjercido: 35000, fecha: hoy });
     check(r.ok && r.pedido.reduccion.montoEjercido === 90000, 'reducción del oficio 2: el contrato queda en 90,000');
 
     r = await api('DELETE', `/pedidos/${A}/autorizaciones/${o3.id}`);
-    check(r.ok && r.pedido.autorizaciones.length === 2 && r.pedido.reduccion.montoEjercido === 85000 - 0 || r.status === 400, 'quitar el oficio 3 se valida contra los contrarrecibos');
+    check(r.ok && r.pedido.autorizaciones.length === 2 && r.pedido.reduccion.montoEjercido === 85000 - 0 || r.status === 400, 'quitar el oficio 3 se valida contra lo facturado');
     r = await api('GET', '/pedidos'); p = r.pedidos.find(x => x.id === A);
     const quedan = p.autorizaciones.length;
 

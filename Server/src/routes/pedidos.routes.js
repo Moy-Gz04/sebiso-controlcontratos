@@ -37,16 +37,23 @@ function oficioAJson(row) {
 
 const archivoAJson = a => a ? { nombre: a.nombre, mime: a.mime, tamano: a.tamano, subidoEn: a.subido_en } : null;
 
-// 0 contrarrecibo · 1 facturado · 2 entregado · 3 contabilidad · 4 en pago · 5 pagado
-function etapaCR(f) { return f.fecha_pagado ? 5 : f.fecha_inicio_pago ? 4 : f.fecha_contabilidad ? 3 : f.entrega_fecha ? 2 : f.no_factura ? 1 : 0; }
-
-// Cada contrarrecibo sigue su camino: contrarrecibo → factura → entrega → contabilidad → pago → pagado
-const ESTADOS_CR = ['contrarecibo', 'facturado', 'entregado', 'en_contabilidad', 'en_pago', 'pagada'];
+// Cada registro nace con su factura y sigue: factura → entrega → contabilidad →
+// contrarrecibo → proceso de pago → pagado.
+// 0 facturado · 1 entregado · 2 contabilidad · 3 contrarrecibo · 4 en pago · 5 pagado
+// -1: registro anterior al cambio que tiene contrarrecibo pero aún no su factura.
+function etapaCR(f) {
+  if (!f.no_factura) return -1;
+  return f.fecha_pagado ? 5 : f.fecha_inicio_pago ? 4 : (f.cr_no && f.fecha_contabilidad) ? 3 : f.fecha_contabilidad ? 2 : f.entrega_fecha ? 1 : 0;
+}
+const ESTADOS_CR = ['facturado', 'entregado', 'en_contabilidad', 'contrarecibo', 'en_pago', 'pagada'];
+const estadoCR = f => { const e = etapaCR(f); return e < 0 ? 'sin_factura' : ESTADOS_CR[e]; };
 function facturaAJson(f, archivos) {
   const doc = t => archivoAJson(archivos.find(a => a.tipo === t + '-' + f.id));
   return {
-    id: f.id, estado: ESTADOS_CR[etapaCR(f)],
-    contrarecibo: { noContrarecibo: f.cr_no, fecha: f.cr_fecha, cuentaPorPagar: f.cr_cuenta, monto: f.cr_monto !== null ? Number(f.cr_monto) : null, documento: doc('contrarecibo') },
+    id: f.id, estado: estadoCR(f),
+    contrarecibo: f.cr_no ? { noContrarecibo: f.cr_no, fecha: f.cr_fecha, cuentaPorPagar: f.cr_cuenta, monto: f.cr_monto !== null ? Number(f.cr_monto) : null, documento: doc('contrarecibo') } : null,
+    // lo que ampara este registro del autorizado: su factura (o su contrarrecibo si es anterior y aún no factura)
+    montoAmparado: f.monto !== null ? Number(f.monto) : (f.cr_monto !== null ? Number(f.cr_monto) : 0),
     factura: f.no_factura ? { noFactura: f.no_factura, fecha: f.fecha, descripcion: f.descripcion, monto: Number(f.monto), documento: doc('factura') } : null,
     entrega: f.entrega_fecha ? { fecha: f.entrega_fecha, documento: doc('entrega') } : null,
     oficioContabilidad: f.fecha_contabilidad ? { noOficio: f.contab_oficio, fecha: f.fecha_contabilidad, monto: f.contab_monto !== null ? Number(f.contab_monto) : null, documento: doc('contab') } : null,
@@ -294,13 +301,15 @@ const num = v => (v === '' || v === null || v === undefined || isNaN(Number(v)))
 const texto = v => (typeof v === 'string' && v.trim()) ? v.trim() : null;
 const fecha = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
 
-// Monto disponible para contrarrecibos: el autorizado vigente (ya considera la reducción líquida)
+// Monto disponible para facturas: el autorizado vigente (ya considera la reducción líquida)
 async function montoDisponible(id, row) {
   return autorizadoVigente(id, row);
 }
-// Total comprometido en contrarrecibos del contrato
-async function totalContrarecibos(id, excepto = 0) {
-  const { rows } = await db.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2', [id, excepto]);
+// Lo amparado del autorizado: la factura de cada registro (o su contrarrecibo, si es
+// un registro anterior que aún no tiene factura)
+const SQL_AMPARADO = 'SELECT COALESCE(SUM(COALESCE(monto, cr_monto)),0) AS t FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2';
+async function totalAmparado(id, excepto = 0, q = db) {
+  const { rows } = await q.query(SQL_AMPARADO, [id, excepto]);
   return Number(rows[0].t);
 }
 
@@ -419,10 +428,10 @@ router.delete('/:id/autorizaciones/:aid', async (req, res) => {
     await sincronizarAutorizacion(client, id);
     const { rows: p } = await client.query('SELECT * FROM pedidos WHERE id=$1', [id]);
     const vigente = await autorizadoVigenteCon(client, id, p[0]);
-    const totCr = Number((await client.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1', [id])).rows[0].t);
+    const totCr = await totalAmparado(id, 0, client);
     if (vigente !== null && totCr > vigente + 0.005) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ ok: false, mensaje: 'Sin ese oficio, los contrarrecibos (' + totCr.toFixed(2) + ') superarían lo autorizado (' + vigente.toFixed(2) + ').' });
+      return res.status(400).json({ ok: false, mensaje: 'Sin ese oficio, lo facturado (' + totCr.toFixed(2) + ') superaría lo autorizado (' + vigente.toFixed(2) + ').' });
     }
     const { rows: arch } = await client.query("SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo=$2 AND drive_id IS NOT NULL", [id, 'reduccion-' + aid]);
     await client.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo=$2', [id, 'reduccion-' + aid]);
@@ -473,10 +482,10 @@ router.put('/:id/reduccion', async (req, res) => {
     await sincronizarAutorizacion(client, id);
     const { rows: p } = await client.query('SELECT * FROM pedidos WHERE id=$1', [id]);
     const vigente = await autorizadoVigenteCon(client, id, p[0]);
-    const cr = Number((await client.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1', [id])).rows[0].t);
+    const cr = await totalAmparado(id, 0, client);
     if (vigente !== null && cr > vigente + 0.005) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ ok: false, mensaje: 'Con esa reducción el contrato quedaría en ' + vigente.toFixed(2) + ', menos de lo ya registrado en contrarrecibos (' + cr.toFixed(2) + ')' });
+      return res.status(400).json({ ok: false, mensaje: 'Con esa reducción el contrato quedaría en ' + vigente.toFixed(2) + ', menos de lo ya facturado (' + cr.toFixed(2) + ')' });
     }
     await client.query('UPDATE pedidos SET actualizado_en=now() WHERE id=$1', [id]);
     await client.query('COMMIT');
@@ -549,14 +558,14 @@ async function recalcularEstatus(id) {
   const { rows: crs } = await db.query('SELECT * FROM pedido_facturas WHERE pedido_id=$1', [id]);
   let nuevo = 'factura_recibida', fechaPagado = null;
   if (crs.length) {
-    const minima = Math.min(...crs.map(etapaCR));
+    const minima = Math.min(...crs.map(etapaCR));   // -1 si algún registro aún no tiene factura
     const disp = await montoDisponible(id, row);
     // Concluido solo si lo facturado (y pagado) cubre el monto disponible
     const total = crs.reduce((t, f) => t + Number(f.monto || 0), 0);
     const completo = disp !== null && total >= disp - 0.005;
     if (minima === 5 && completo) { nuevo = 'pagado'; fechaPagado = crs.map(f => f.fecha_pagado).sort().pop(); }
     else if (minima >= 4) nuevo = 'en_pago';
-    else if (minima >= 3) nuevo = 'en_contabilidad';
+    else if (minima >= 2) nuevo = 'en_contabilidad';
   }
   if (nuevo !== row.estatus || (nuevo === 'pagado' && String(row.fecha_pagado) !== String(fechaPagado))) {
     await db.query('UPDATE pedidos SET estatus=$1, fecha_pagado=$2, actualizado_en=now() WHERE id=$3', [nuevo, fechaPagado, id]);
@@ -570,10 +579,28 @@ function leerContrarecibo(b) {
   return { d, error };
 }
 
-// Nuevo contrarrecibo
+function leerFactura(b) {
+  const d = { no: texto(b.noFactura), fecha: fecha(b.fecha), descripcion: texto(b.descripcion), monto: num(b.monto) };
+  const error = !d.no ? 'Falta el No. de factura' : !d.fecha ? 'Falta la fecha de la factura'
+    : !d.descripcion ? 'Falta la descripción de la factura' : !(d.monto > 0) ? 'El monto de la factura debe ser mayor a 0' : null;
+  return { d, error };
+}
+// Que una factura (nueva o corregida) no se pase del autorizado ni repita número
+async function validarFactura(id, row, fid, d) {
+  const disp = await montoDisponible(id, row);
+  const tot = await totalAmparado(id, fid || 0);
+  if (disp !== null && tot + d.monto > disp + 0.005) {
+    return 'Con esta factura se pasaría del monto disponible. Por facturar: $' + Math.max(0, disp - tot).toFixed(2);
+  }
+  const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2 AND lower(no_factura)=lower($3)', [id, fid || 0, d.no]);
+  if (dup.length) return 'Ya hay una factura con ese número en este contrato';
+  return null;
+}
+
+// Nueva factura: abre un registro que luego sigue entrega → contabilidad → contrarrecibo → pago
 router.post('/:id/facturas', async (req, res) => {
   const id = Number(req.params.id);
-  const { d, error } = leerContrarecibo(req.body || {});
+  const { d, error } = leerFactura(req.body || {});
   if (error) return res.status(400).json({ ok: false, mensaje: error });
   try {
     const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
@@ -582,42 +609,53 @@ router.post('/:id/facturas', async (req, res) => {
     if (ORDEN_ESTATUS.indexOf(row.estatus) < ORDEN_ESTATUS.indexOf('adecuacion')) {
       return res.status(409).json({ ok: false, mensaje: 'Primero registra (u omite) el oficio de adecuación.' });
     }
-    const disp = await montoDisponible(id, row);
-    const tot = await totalContrarecibos(id);
-    if (disp !== null && tot + d.monto > disp + 0.005) {
-      return res.status(400).json({ ok: false, mensaje: 'Con este contrarrecibo se pasaría del monto disponible. Por registrar: $' + Math.max(0, disp - tot).toFixed(2) });
-    }
-    const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND lower(cr_no)=lower($2)', [id, d.no]);
-    if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay un contrarrecibo con ese número en este contrato' });
+    const invalida = await validarFactura(id, row, 0, d);
+    if (invalida) return res.status(400).json({ ok: false, mensaje: invalida });
     const { rows: nuevo } = await db.query(
-      'INSERT INTO pedido_facturas (pedido_id, cr_no, cr_fecha, cr_cuenta, cr_monto) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [id, d.no, d.fecha, d.cuenta, d.monto]);
+      'INSERT INTO pedido_facturas (pedido_id, no_factura, fecha, descripcion, monto) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [id, d.no, d.fecha, d.descripcion, d.monto]);
     if (row.estatus === 'adecuacion') await db.query(`UPDATE pedidos SET estatus='factura_recibida', actualizado_en=now() WHERE id=$1`, [id]);
     await recalcularEstatus(id);
     res.status(201).json({ ok: true, facturaId: nuevo[0].id, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {
-    console.error('Error en POST contrarrecibo:', error);
-    res.status(500).json({ ok: false, mensaje: 'Error al registrar el contrarrecibo' });
+    console.error('Error en POST factura:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al registrar la factura' });
   }
 });
 
-// Corregir los datos de un contrarrecibo
+// Corregir los datos de una factura ya registrada
+router.put('/:id/facturas/:fid/corregir-factura', async (req, res) => {
+  const id = Number(req.params.id), fid = Number(req.params.fid);
+  const { d, error } = leerFactura(req.body || {});
+  if (error) return res.status(400).json({ ok: false, mensaje: error });
+  try {
+    const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
+    const { rows: fr } = await db.query('SELECT no_factura FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
+    if (!fr.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
+    if (!fr[0].no_factura) return res.status(409).json({ ok: false, mensaje: 'Este registro aún no tiene factura.' });
+    const invalida = await validarFactura(id, rows[0], fid, d);
+    if (invalida) return res.status(400).json({ ok: false, mensaje: invalida });
+    await db.query('UPDATE pedido_facturas SET no_factura=$1, fecha=$2, descripcion=$3, monto=$4 WHERE id=$5', [d.no, d.fecha, d.descripcion, d.monto, fid]);
+    await recalcularEstatus(id);
+    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    console.error('Error en PUT corregir-factura:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al guardar la factura' });
+  }
+});
+
+// Contrarrecibo de una factura: se registra después de contabilidad (y se puede corregir)
 router.put('/:id/facturas/:fid/contrarecibo', async (req, res) => {
   const id = Number(req.params.id), fid = Number(req.params.fid);
   const { d, error } = leerContrarecibo(req.body || {});
   if (error) return res.status(400).json({ ok: false, mensaje: error });
   try {
-    const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
-    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
-    const { rows: cr } = await db.query('SELECT 1 FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
-    if (!cr.length) return res.status(404).json({ ok: false, mensaje: 'Contrarrecibo no encontrado' });
-    const disp = await montoDisponible(id, rows[0]);
-    const tot = await totalContrarecibos(id, fid);
-    if (disp !== null && tot + d.monto > disp + 0.005) {
-      return res.status(400).json({ ok: false, mensaje: 'Se pasaría del monto disponible. Máximo para este contrarrecibo: $' + Math.max(0, disp - tot).toFixed(2) });
-    }
+    const { rows: fr } = await db.query('SELECT cr_no, fecha_contabilidad FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
+    if (!fr.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
+    if (!fr[0].cr_no && !fr[0].fecha_contabilidad) return res.status(409).json({ ok: false, mensaje: 'El contrarrecibo se registra después de turnar la factura a contabilidad.' });
     const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2 AND lower(cr_no)=lower($3)', [id, fid, d.no]);
-    if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay otro contrarrecibo con ese número' });
+    if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay otro contrarrecibo con ese número en este contrato' });
     await db.query('UPDATE pedido_facturas SET cr_no=$1, cr_fecha=$2, cr_cuenta=$3, cr_monto=$4 WHERE id=$5', [d.no, d.fecha, d.cuenta, d.monto, fid]);
     await recalcularEstatus(id);
     res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
@@ -627,12 +665,13 @@ router.put('/:id/facturas/:fid/contrarecibo', async (req, res) => {
   }
 });
 
-// Avance de un contrarrecibo (en orden): factura → entrega → contabilidad → inicio de pago → pagado
+// Avance de cada factura (en orden): entrega → contabilidad → (contrarrecibo, ruta aparte) → inicio de pago → pagado.
+// 'factura' solo aplica a registros anteriores al cambio que tienen contrarrecibo y aún no factura.
 const AVANCE_FACTURA = {
   'factura':      { columna: 'no_factura', antes: null, nombre: 'la factura' },
   'entrega':      { columna: 'entrega_fecha', antes: 'no_factura', nombre: 'la entrega' },
   'contabilidad': { columna: 'fecha_contabilidad', antes: 'entrega_fecha', nombre: 'el paso a contabilidad' },
-  'inicio-pago':  { columna: 'fecha_inicio_pago', antes: 'fecha_contabilidad', nombre: 'el inicio del pago' },
+  'inicio-pago':  { columna: 'fecha_inicio_pago', antes: 'cr_no', nombre: 'el inicio del pago' },
   'pagado':       { columna: 'fecha_pagado', antes: 'fecha_inicio_pago', nombre: 'el pago' }
 };
 router.put('/:id/facturas/:fid/:avance', async (req, res, next) => {
@@ -657,10 +696,12 @@ router.put('/:id/facturas/:fid/:avance', async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrarrecibo no encontrado' });
     const cr = rows[0];
     if (cr[av.columna]) return res.status(409).json({ ok: false, mensaje: 'Este contrarrecibo ya tiene registrado ' + av.nombre + '. Recarga la página.' });
-    if (av.antes && !cr[av.antes]) return res.status(409).json({ ok: false, mensaje: 'Este contrarrecibo aún no está en el paso previo.' });
+    if (av.antes && !cr[av.antes]) return res.status(409).json({ ok: false, mensaje: tipo === 'inicio-pago' ? 'Primero registra el contrarrecibo de esta factura.' : 'Esta factura aún no está en el paso previo.' });
+    if (tipo === 'inicio-pago' && !cr.fecha_contabilidad) return res.status(409).json({ ok: false, mensaje: 'Primero turna esta factura a contabilidad.' });
     if (tipo === 'factura') {
-      const { rows: dup } = await db.query('SELECT 1 FROM pedido_facturas WHERE pedido_id=$1 AND id<>$2 AND lower(no_factura)=lower($3)', [id, fid, texto(b.noFactura)]);
-      if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay una factura con ese número en este contrato' });
+      const { rows: pr } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
+      const invalida = await validarFactura(id, pr[0], fid, { no: texto(b.noFactura), monto });
+      if (invalida) return res.status(400).json({ ok: false, mensaje: invalida });
       await db.query('UPDATE pedido_facturas SET no_factura=$1, fecha=$2, descripcion=$3, monto=$4 WHERE id=$5', [texto(b.noFactura), f, texto(b.descripcion), monto, fid]);
     } else if (tipo === 'contabilidad') {
       await db.query('UPDATE pedido_facturas SET fecha_contabilidad=$1, contab_oficio=$2, contab_monto=$3 WHERE id=$4', [f, no, monto, fid]);
@@ -703,8 +744,8 @@ router.delete('/:id/facturas/:fid', async (req, res) => {
   const id = Number(req.params.id), fid = Number(req.params.fid);
   try {
     const { rows } = await db.query('SELECT fecha_pagado FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [fid, id]);
-    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrarrecibo no encontrado' });
-    if (rows[0].fecha_pagado) return res.status(409).json({ ok: false, mensaje: 'No se puede eliminar un contrarrecibo pagado' });
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
+    if (rows[0].fecha_pagado) return res.status(409).json({ ok: false, mensaje: 'No se puede eliminar una factura pagada' });
     const tipos = DOCS_CR.map(t => t + '-' + fid);
     const { rows: arch } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo = ANY($2) AND drive_id IS NOT NULL', [id, tipos]);
     await db.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo = ANY($2)', [id, tipos]);
@@ -836,8 +877,8 @@ router.put('/:id/editar-todo', async (req, res) => {
       const { rows: fr } = await client.query('SELECT * FROM pedido_facturas WHERE id=$1 AND pedido_id=$2', [Number(c.id), id]);
       if (!fr.length) continue;
       const f = fr[0];
-      const nom = 'contrarrecibo ' + (texto(c.contrarecibo && c.contrarecibo.noContrarecibo) || f.cr_no);
-      if (c.contrarecibo) {
+      const nom = f.no_factura ? 'factura ' + f.no_factura : 'contrarrecibo ' + f.cr_no;
+      if (c.contrarecibo && f.cr_no) {
         const x = c.contrarecibo;
         await client.query('UPDATE pedido_facturas SET cr_no=$1, cr_fecha=$2, cr_cuenta=$3, cr_monto=$4 WHERE id=$5',
           [reqTexto(x.noContrarecibo, 'el No. de contrarrecibo'), reqFecha(x.fecha, nom), reqTexto(x.cuentaPorPagar, 'la cuenta por pagar del ' + nom), reqMonto(x.monto, nom), f.id]);
@@ -876,8 +917,8 @@ router.put('/:id/editar-todo', async (req, res) => {
     const baseSin = n.oficio_monto !== null ? Number(n.oficio_monto) : (n.aut_monto !== null ? Number(n.aut_monto) : null);
     const autSin = baseSin === null ? null : baseSin + await ajuste(false);
     const vigente = n.reduccion_monto !== null ? Number(n.reduccion_monto) + await ajuste(true) : autSin;
-    const totCr = Number((await client.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1', [id])).rows[0].t);
-    if (vigente !== null && totCr > vigente + 0.005) fallo('Los contrarrecibos (' + totCr.toFixed(2) + ') suman más que el autorizado vigente (' + vigente.toFixed(2) + ')');
+    const totCr = await totalAmparado(id, 0, client);
+    if (vigente !== null && totCr > vigente + 0.005) fallo('Las facturas (' + totCr.toFixed(2) + ') suman más que el autorizado vigente (' + vigente.toFixed(2) + ')');
 
     await client.query('UPDATE pedidos SET actualizado_en=now() WHERE id=$1', [id]);
     await client.query('COMMIT');

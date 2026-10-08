@@ -208,16 +208,16 @@ function adjuntarEventosPedidos() {
         if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
         boton.disabled = true;
         let rutaDoc = form.dataset.doc;
-        if (form.dataset.accion === 'contrarecibo-nuevo') {
-          // Los contrarrecibos se agregan a una lista; su documento lleva su número interno
+        if (form.dataset.accion === 'factura-nueva') {
+          // Las facturas se agregan a una lista; su documento lleva su número interno
           const r = await StorePedidos.agregarContrarecibo(id, cuerpo);
-          rutaDoc = 'documento-contrarecibo-' + r.facturaId;
+          rutaDoc = 'documento-factura-' + r.facturaId;
         } else {
           await StorePedidos.registrarPaso(id, form.dataset.accion, cuerpo);
           // La reducción líquida guarda su documento en el oficio de autorización elegido
           if (form.dataset.accion === 'reduccion' && cuerpo.autorizacionId) rutaDoc = 'documento-reduccion-' + cuerpo.autorizacionId;
         }
-        let aviso = form.dataset.accion === 'contrarecibo-nuevo' ? 'Contrarrecibo registrado.' : form.dataset.accion === 'reduccion' ? 'Reducción líquida guardada.' : 'Paso registrado.', error = false;
+        let aviso = form.dataset.accion === 'factura-nueva' ? 'Factura registrada.' : form.dataset.accion === 'reduccion' ? 'Reducción líquida guardada.' : 'Paso registrado.', error = false;
         if (doc && rutaDoc) {
           try { await StorePedidos.subirDocumento(id, rutaDoc, doc); aviso = aviso.replace('.', ' con su documento.'); }
           catch (err) { aviso = 'Paso registrado, pero el documento no se subió: ' + err.message + ' Súbelo desde el detalle.'; error = true; }
@@ -271,12 +271,12 @@ function adjuntarEventosPedidos() {
     });
   });
 
-  // Avance de cada contrarrecibo: factura, entrega, contabilidad, proceso de pago, pagado
-  // (y corrección del contrarrecibo o del oficio de contabilidad). Si trae documento, se sube después.
+  // Avance de cada factura: entrega, contabilidad, contrarrecibo, proceso de pago, pagado
+  // (y corrección de la factura, del contrarrecibo o del oficio de contabilidad). Si trae documento, se sube después.
   const AVISO_CR = {
     factura: 'Factura registrada', entrega: 'Entrega registrada', contabilidad: 'Turnado a contabilidad',
     'inicio-pago': 'Proceso de pago iniciado', pagado: 'Pago registrado',
-    contrarecibo: 'Contrarrecibo actualizado', 'oficio-contabilidad': 'Oficio de contabilidad guardado'
+    contrarecibo: 'Contrarrecibo guardado', 'corregir-factura': 'Factura actualizada', 'oficio-contabilidad': 'Oficio de contabilidad guardado'
   };
   contenedor.querySelectorAll('.form-avance-cr').forEach(form => {
     form.addEventListener('submit', async (e) => {
@@ -292,10 +292,10 @@ function adjuntarEventosPedidos() {
         if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error('El documento pesa más de ' + MAX_CONTRATO_MB + ' MB.');
         boton.disabled = true;
         await StorePedidos.avanzarContrarecibo(id, fid, ruta, cuerpo);
-        let aviso = (AVISO_CR[ruta] || 'Contrarrecibo actualizado') + '.', error = false;
+        let aviso = (AVISO_CR[ruta] || 'Factura actualizada') + '.', error = false;
         if (doc && form.dataset.doc) {
           try { await StorePedidos.subirDocumento(id, form.dataset.doc + '-' + fid, doc); aviso = aviso.replace('.', ' con su documento.'); }
-          catch (err) { aviso = 'Se registró, pero el documento no se subió: ' + err.message + ' Súbelo desde el contrarrecibo.'; error = true; }
+          catch (err) { aviso = 'Se registró, pero el documento no se subió: ' + err.message + ' Súbelo desde la factura.'; error = true; }
         }
         tarjetasPedidoExpandidas.add(id);
         await renderListadoPedidos();
@@ -357,8 +357,8 @@ function adjuntarEventosPedidos() {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.pedidoId);
       pedirConfirmacion({
-        titulo: 'Eliminar contrarrecibo',
-        mensaje: '¿Eliminar este contrarrecibo con su factura y sus documentos? Los montos del contrato se recalculan.',
+        titulo: 'Eliminar factura',
+        mensaje: '¿Eliminar esta factura con todo su seguimiento y sus documentos? Los montos del contrato se recalculan.',
         textoConfirmar: 'Sí, eliminar',
         peligro: true,
         accion: async () => {
@@ -366,7 +366,7 @@ function adjuntarEventosPedidos() {
             await StorePedidos.eliminarContrarecibo(id, Number(btn.dataset.eliminarFactura));
             tarjetasPedidoExpandidas.add(id);
             await renderListadoPedidos();
-            mostrarAviso('Contrarrecibo eliminado.');
+            mostrarAviso('Factura eliminada.');
           } catch (err) { mostrarAviso(err.message, true); }
         }
       });
