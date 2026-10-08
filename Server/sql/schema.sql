@@ -181,3 +181,18 @@ ALTER TABLE pedido_facturas ALTER COLUMN monto DROP NOT NULL;
 
 -- Número del contrato (p. ej. 594/2025), para buscarlo fácil
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS no_contrato TEXT;
+
+-- Varios oficios de autorización por contrato (2026-10-08): sus montos se suman y el
+-- documento es uno solo para todos (pedido_archivos tipo 'autorizacion'). Cada oficio
+-- puede tener su reducción líquida (red_monto reemplaza su monto; documento
+-- 'reduccion-<id>'). pedidos.aut_* y reduccion_* guardan los totales.
+-- (La ruta pedidos.routes.js crea la tabla y migra los datos al arrancar.)
+CREATE TABLE IF NOT EXISTS pedido_autorizaciones (
+  id SERIAL PRIMARY KEY,
+  pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+  folio TEXT NOT NULL, monto NUMERIC(14,2) NOT NULL CHECK (monto > 0), fecha DATE,
+  red_monto NUMERIC(14,2), red_fecha DATE,
+  creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS pedido_autorizaciones_pedido ON pedido_autorizaciones (pedido_id);
+ALTER TABLE pedidos ALTER COLUMN aut_folio TYPE TEXT;

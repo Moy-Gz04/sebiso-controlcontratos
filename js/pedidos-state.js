@@ -178,6 +178,16 @@ const StorePedidos = {
   subirDocumento(id, ruta, archivo) { return this.subirContrato(id, archivo, ruta); },
   abrirDocumento(id, ruta) { return this.abrirContrato(id, ruta); },
 
+  // Oficios de autorización adicionales (sus montos se suman)
+  async agregarAutorizacion(id, cuerpo) {
+    const datos = await peticion(`/pedidos/${id}/autorizaciones`, { method: 'POST', body: JSON.stringify(cuerpo) });
+    return datos.pedido;
+  },
+  async eliminarAutorizacion(id, aid) {
+    const datos = await peticion(`/pedidos/${id}/autorizaciones/${aid}`, { method: 'DELETE' });
+    return datos.pedido;
+  },
+
   async agregarOficio(id, { tipo, folio, monto, fecha }) {
     const datos = await peticion(`/pedidos/${id}/oficios`, { method: 'POST', body: JSON.stringify({ tipo, folio, monto, fecha }) });
     return datos.pedido;

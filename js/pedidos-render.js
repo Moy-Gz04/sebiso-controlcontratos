@@ -10,6 +10,7 @@ let pedidosCache = [];
 const tarjetasPedidoExpandidas = new Set();
 const tarjetasMontosAbiertas = new Set();
 const tarjetasHistorialAbierto = new Set();  // "Historial" desplegado
+const tarjetasAutorizacionesAbiertas = new Set();   // "Oficios de autorización" desplegados
 const tarjetasOficiosAbiertos = new Set();   // "Oficios de ampliación / cancelación" desplegados   // "Cantidades del contrato" desplegadas
 let filtroEtapa = '';          // '' = todas las etapas
 let ultimaTarjetaAbierta = null; // para animar solo la que se acaba de abrir
@@ -350,7 +351,12 @@ function renderCuerpoPedido(p) {
   const m = montosDelContrato(p);
   const eventos = [
     { fecha: p.fechaSolicitud, titulo: 'Contrato', detalle: `Monto contratado ${fmtMoneda.format(p.montoEstimado || 0)}` },
-    p.autorizacion && { fecha: p.autorizacion.fecha, titulo: 'Oficio de autorización', detalle: `${escaparHtml(p.autorizacion.noOficio)} · ${fmtMoneda.format(p.autorizacion.monto)}`, destacado: true },
+    ...((p.autorizaciones || []).length
+      ? p.autorizaciones.map(a => ({ fecha: a.fecha, titulo: 'Oficio de autorización', detalle: `${escaparHtml(a.noOficio)} · ${fmtMoneda.format(a.monto)}`, destacado: true }))
+      : [p.autorizacion && { fecha: p.autorizacion.fecha, titulo: 'Oficio de autorización', detalle: `${escaparHtml(p.autorizacion.noOficio)} · ${fmtMoneda.format(p.autorizacion.monto)}`, destacado: true }]),
+    ...((p.autorizaciones || []).length > 1
+      ? p.autorizaciones.filter(a => a.reduccion).map(a => ({ fecha: a.reduccion.fecha, titulo: 'Reducción líquida · ' + escaparHtml(a.noOficio), detalle: `El oficio queda en ${fmtMoneda.format(a.reduccion.montoEjercido)} (antes ${fmtMoneda.format(a.monto)})`, destacado: true }))
+      : []),
     p.oficio && { fecha: p.oficio.fecha, titulo: 'Oficio de adecuación', detalle: `${escaparHtml(p.oficio.folio)} · ${fmtMoneda.format(p.oficio.monto)}` },
     ...(p.oficios || []).map(of => ({ fecha: of.fecha, titulo: of.tipo === 'ampliacion' ? 'Ampliación' : 'Cancelación', detalle: `${escaparHtml(of.folio)} · ${of.tipo === 'cancelacion' ? '−' : '+'}${fmtMoneda.format(of.monto)}` })),
     ...(p.facturas || []).flatMap(f => {
@@ -364,7 +370,7 @@ function renderCuerpoPedido(p) {
         f.pago && { fecha: f.pago.fecha, titulo: cr + ' · pagado', detalle: f.factura ? fmtMoneda.format(f.factura.monto) : '', destacado: true }
       ];
     }).filter(Boolean),
-    p.reduccion && { fecha: p.reduccion.fecha, titulo: 'Reducción líquida', detalle: `El autorizado queda en ${fmtMoneda.format(p.reduccion.montoEjercido)}${m.autorizadoPrevio !== null ? ` (antes ${fmtMoneda.format(m.autorizadoPrevio)})` : ''}`, destacado: true },
+    p.reduccion && (p.autorizaciones || []).length <= 1 && { fecha: p.reduccion.fecha, titulo: 'Reducción líquida', detalle: `El autorizado queda en ${fmtMoneda.format(p.reduccion.montoEjercido)}${m.autorizadoPrevio !== null ? ` (antes ${fmtMoneda.format(m.autorizadoPrevio)})` : ''}`, destacado: true },
     p.estatus === 'pagado' && p.fechaPagado && { fecha: p.fechaPagado, titulo: 'Contrato pagado', detalle: 'Proceso concluido', destacado: true }
   ].filter(Boolean).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
 
@@ -466,6 +472,7 @@ function renderCuerpoPedido(p) {
     </details>`;
   }
 
+  const autorizacionesHtml = idxActual >= indicePaso('oficio_autorizado') ? renderOficiosAutorizacion(p) : '';
   const accionReduccion = idxActual >= indicePaso('oficio_autorizado') ? renderReduccion(p) : '';
   const acciones = `
     <div class="tc-acciones">
@@ -480,7 +487,9 @@ function renderCuerpoPedido(p) {
     bloqueDocumento(p, 'Contrato', p.contrato, 'contrato', 'Subir el archivo del contrato'),
     p.autorizacion ? bloqueDocumento(p, 'Oficio de autorización', p.documentoAutorizacion, 'documento-autorizacion', 'Adjuntar el oficio de autorización') : '',
     p.oficio ? bloqueDocumento(p, 'Oficio de adecuación', p.documentoAdecuacion, 'documento-adecuacion', 'Adjuntar el oficio de adecuación') : '',
-    p.reduccion ? bloqueDocumento(p, 'Reducción líquida', p.documentoReduccion, 'documento-reduccion', 'Adjuntar el documento de la reducción líquida') : ''
+    ...((p.autorizaciones || []).length
+      ? p.autorizaciones.filter(a => a.reduccion).map(a => bloqueDocumento(p, 'Reducción líquida' + (p.autorizaciones.length > 1 ? ' · ' + escaparHtml(a.noOficio) : ''), a.reduccion.documento, 'documento-reduccion-' + a.id, 'Adjuntar el documento de la reducción líquida'))
+      : [p.reduccion ? bloqueDocumento(p, 'Reducción líquida', p.documentoReduccion, 'documento-reduccion', 'Adjuntar el documento de la reducción líquida') : ''])
   ].join('');
 
   // Cantidades del contrato: al final y plegadas; se abren al tocar el encabezado
@@ -494,7 +503,7 @@ function renderCuerpoPedido(p) {
       ${renderMontosContrato(p)}
     </details>`;
 
-  return `<div class="bloque-documentos">${docs}</div>` + recorrido + detalle + renderFacturas(p, idxActual) + oficiosHtml + cantidades + acciones;
+  return `<div class="bloque-documentos">${docs}</div>` + recorrido + detalle + renderFacturas(p, idxActual) + autorizacionesHtml + oficiosHtml + cantidades + acciones;
 }
 
 const tamanoArchivo = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
@@ -549,7 +558,16 @@ function renderEditarTodo(p) {
     ${fila(`<label>Cantidad<input type="number" name="datos.cantidad" step="any" min="0" value="${v(p.cantidad)}" required></label>`, t('datos.unidadMedida', 'Unidad', p.unidadMedida, false), mo('datos.montoEstimado', 'Monto contratado', p.montoEstimado), fe('datos.fechaSolicitud', 'Fecha del contrato', p.fechaSolicitud))}
     <label>Descripción<textarea name="datos.descripcion" rows="3">${v(p.descripcion)}</textarea></label>
     ${dc('Contrato', 'contrato', p.contrato)}`));
-  if (p.autorizacion) partes.push(sec('ti-file-certificate', 'Oficio de autorización', '', fila(
+  if ((p.autorizaciones || []).length) {
+    const varios = p.autorizaciones.length > 1;
+    const cuerpoAut = p.autorizaciones.map(a => {
+      const k = 'aut.' + a.id + '.';
+      let c = fila(t(k + 'noOficio', 'No. de oficio', a.noOficio), mo(k + 'monto', 'Monto autorizado', a.monto), fe(k + 'fecha', 'Fecha', a.fecha));
+      if (a.reduccion) c += `<div class="ed-sub"><div class="ed-sub-titulo">Reducción líquida</div>${fila(mo(k + 'red.montoEjercido', 'Nuevo autorizado de este oficio', a.reduccion.montoEjercido), fe(k + 'red.fecha', 'Fecha', a.reduccion.fecha))}${dc('Reducción líquida', 'documento-reduccion-' + a.id, a.reduccion.documento)}</div>`;
+      return varios ? `<div class="ed-sub"><div class="ed-sub-titulo">Oficio ${escaparHtml(a.noOficio)}</div>${c}</div>` : c;
+    }).join('');
+    partes.push(sec('ti-file-certificate', varios ? 'Oficios de autorización' : 'Oficio de autorización', varios ? 'Total ' + fmtMoneda.format(p.autorizacion ? p.autorizacion.monto : 0) : '', cuerpoAut + dc('Oficio de autorización', 'documento-autorizacion', p.documentoAutorizacion)));
+  } else if (p.autorizacion) partes.push(sec('ti-file-certificate', 'Oficio de autorización', '', fila(
     t('autorizacion.noOficio', 'No. de oficio', p.autorizacion.noOficio), mo('autorizacion.monto', 'Monto autorizado', p.autorizacion.monto), fe('autorizacion.fecha', 'Fecha', p.autorizacion.fecha)) + dc('Oficio de autorización', 'documento-autorizacion', p.documentoAutorizacion)));
   if (p.oficio) partes.push(sec('ti-adjustments-dollar', 'Oficio de adecuación', '', fila(
     t('adecuacion.folio', 'Folio', p.oficio.folio), mo('adecuacion.monto', 'Nuevo monto autorizado', p.oficio.monto), fe('adecuacion.fecha', 'Fecha', p.oficio.fecha)) + dc('Oficio de adecuación', 'documento-adecuacion', p.documentoAdecuacion)));
@@ -567,7 +585,7 @@ function renderEditarTodo(p) {
     if (f.pago) cuerpo += sub('Pagado', fila(fe(k + 'pago.fecha', 'Fecha de pago', f.pago.fecha)) + (f.pago.documento ? dc('Pago', 'documento-pago-' + f.id, f.pago.documento) : ''));
     partes.push(sec('ti-receipt-2', 'Contrarrecibo ' + escaparHtml(cr.noContrarecibo || ''), fmtMoneda.format(cr.monto || 0), cuerpo));
   });
-  if (p.reduccion) partes.push(sec('ti-arrow-down-circle', 'Reducción líquida', '', fila(mo('reduccion.montoEjercido', 'Nuevo autorizado', p.reduccion.montoEjercido), fe('reduccion.fecha', 'Fecha', p.reduccion.fecha)) + dc('Reducción líquida', 'documento-reduccion', p.documentoReduccion)));
+  if (p.reduccion && !(p.autorizaciones || []).length) partes.push(sec('ti-arrow-down-circle', 'Reducción líquida', '', fila(mo('reduccion.montoEjercido', 'Nuevo autorizado', p.reduccion.montoEjercido), fe('reduccion.fecha', 'Fecha', p.reduccion.fecha)) + dc('Reducción líquida', 'documento-reduccion', p.documentoReduccion)));
   return `
     <div class="fi-oficio" id="editar-${p.id}" hidden>
       <form class="form-editar-todo" data-pedido-id="${p.id}">
@@ -583,25 +601,95 @@ function renderEditarTodo(p) {
     </div>`;
 }
 
+// ---------- Oficios de autorización (uno o varios; sus montos se suman) ----------
+function filaOficioAut(n, monto = '') {
+  return `
+    <div class="fila-formulario fila-oficio-aut" data-fila-oficio-aut>
+      <label>No. de oficio${n > 1 ? ' ' + n : ''}
+        <input type="text" data-campo="noOficio" placeholder="Ej. SH/0716/2026" required>
+      </label>
+      <label>Monto autorizado
+        <input type="number" data-campo="monto" step="0.01" min="0.01" value="${monto}" required>
+      </label>
+      ${n > 1 ? '<button type="button" class="btn-icono" data-quitar-oficio-aut title="Quitar este oficio" aria-label="Quitar este oficio"><i class="ti ti-x"></i></button>' : ''}
+    </div>`;
+}
+
+function renderOficiosAutorizacion(p) {
+  const auts = p.autorizaciones || [];
+  if (!auts.length) return '';
+  const total = auts.reduce((t, a) => t + Number(a.monto), 0);
+  const vigente = auts.reduce((t, a) => t + Number(a.reduccion ? a.reduccion.montoEjercido : a.monto), 0);
+  const hayRed = auts.some(a => a.reduccion);
+  return `<details class="detalle-montos detalle-oficios detalle-autorizaciones" ${tarjetasAutorizacionesAbiertas.has(p.id) ? 'open' : ''} data-autorizaciones-id="${p.id}">
+      <summary>
+        <span class="dm-titulo"><i class="ti ti-chevron-right"></i> Oficios de autorización</span>
+        <span class="dm-resumen">${auts.length} oficio${auts.length > 1 ? 's' : ''} · total <b>${fmtMoneda.format(total)}</b>${hayRed ? ` · tras reducción ${fmtMoneda.format(vigente)}` : ''}</span>
+      </summary>
+      <div class="bloque-oficios">
+        <div class="tabla-scroll">
+        <table class="tabla-oficios-registrados">
+          <thead><tr><th>No. de oficio</th><th>Monto</th><th>Fecha</th><th>Reducción líquida</th><th></th></tr></thead>
+          <tbody>
+            ${auts.map(a => `
+              <tr>
+                <td>${escaparHtml(a.noOficio)}</td>
+                <td>${fmtMoneda.format(a.monto)}</td>
+                <td>${fmtFecha(a.fecha)}</td>
+                <td>${a.reduccion ? `queda en <b>${fmtMoneda.format(a.reduccion.montoEjercido)}</b> <small class="texto-negativo">−${fmtMoneda.format(a.monto - a.reduccion.montoEjercido)}</small>` : '<span class="texto-suave">Sin reducción</span>'}</td>
+                <td>${auts.length > 1 ? `<button type="button" class="btn-icono" data-eliminar-autorizacion="${a.id}" data-pedido-id="${p.id}" title="Quitar oficio" aria-label="Quitar oficio ${escaparHtml(a.noOficio)}"><i class="ti ti-trash"></i></button>` : ''}</td>
+              </tr>`).join('')}
+          </tbody>
+          ${auts.length > 1 ? `<tfoot><tr><td><b>Total</b></td><td><b>${fmtMoneda.format(total)}</b></td><td></td><td>${hayRed ? `<b>${fmtMoneda.format(vigente)}</b>` : ''}</td><td></td></tr></tfoot>` : ''}
+        </table>
+        </div>
+        <form class="form-autorizacion-pedido" data-pedido-id="${p.id}">
+          <div class="fila-formulario fila-4">
+            <label>No. de oficio
+              <input type="text" name="noOficio" placeholder="Ej. SH/0812/2026" required>
+            </label>
+            <label>Monto autorizado
+              <input type="number" name="monto" step="0.01" min="0.01" required>
+            </label>
+            <label>Fecha
+              <input type="date" name="fecha" required>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-secundario btn-sm"><i class="ti ti-plus"></i> Agregar oficio de autorización</button>
+          <small class="texto-suave">Su monto se suma al autorizado. El documento del oficio es uno solo para todos.</small>
+        </form>
+      </div>
+    </details>`;
+}
+
 // ---------- Reducción líquida (opcional, en cualquier momento) ----------
 function renderReduccion(p) {
   const m = montosDelContrato(p);
   const valor = v => v === null || v === undefined ? '' : Number(v).toFixed(2);
-  const tope = p.reduccion ? m.autorizadoPrevio : m.autorizado;
-  const sugerido = p.reduccion ? p.reduccion.montoEjercido : (m.facturado || m.contrarecibos);
   const hoy = new Date().toISOString().slice(0, 10);
+  const auts = p.autorizaciones && p.autorizaciones.length ? p.autorizaciones : [];
+  // Cada oficio de autorización tiene su propia reducción; se elige a cuál (el primero sin reducir)
+  const elegido = auts.find(a => !a.reduccion) || auts[0];
+  const tope = elegido ? elegido.monto : (p.reduccion ? m.autorizadoPrevio : m.autorizado);
+  const sugerido = elegido ? (elegido.reduccion ? elegido.reduccion.montoEjercido : elegido.monto) : (p.reduccion ? p.reduccion.montoEjercido : (m.facturado || m.contrarecibos));
+  const hayRed = auts.length ? auts.some(a => a.reduccion) : !!p.reduccion;
+  const opcion = a => `<option value="${a.id}" data-monto="${valor(a.monto)}" data-red="${a.reduccion ? valor(a.reduccion.montoEjercido) : ''}" data-fecha="${a.reduccion ? a.reduccion.fecha : ''}" ${a === elegido ? 'selected' : ''}>${escaparHtml(a.noOficio)} · ${fmtMoneda.format(a.monto)}${a.reduccion ? ' (reducido a ' + fmtMoneda.format(a.reduccion.montoEjercido) + ')' : ''}</option>`;
+  const selector = auts.length > 1
+    ? `<label>Oficio de autorización<select name="autorizacionId" data-elegir-oficio-red>${auts.map(opcion).join('')}</select></label>`
+    : (elegido ? `<input type="hidden" name="autorizacionId" value="${elegido.id}">` : '');
   return `
-    <button type="button" class="btn btn-secundario btn-sm" data-abrir-cr="reduccion-${p.id}"><i class="ti ti-arrow-down-circle"></i> ${p.reduccion ? 'Corregir reducción líquida' : 'Reducción líquida'}</button>
+    <button type="button" class="btn btn-secundario btn-sm" data-abrir-cr="reduccion-${p.id}"><i class="ti ti-arrow-down-circle"></i> ${hayRed ? 'Reducción líquida (agregar o corregir)' : 'Reducción líquida'}</button>
     <div class="fi-oficio" id="reduccion-${p.id}" hidden>
       <form class="form-paso-pedido" data-pedido-id="${p.id}" data-accion="reduccion" data-doc="documento-reduccion">
         <div class="fi-oficio-titulo">Reducción líquida</div>
-        <p class="ppa-ayuda">Opcional. Normalmente se registra al final, cuando ya está todo pagado. Reemplaza el autorizado (${fmtMoneda.format(tope || 0)}) por lo que realmente se ocupó; no puede ser menor a lo amparado en contrarrecibos (${fmtMoneda.format(m.contrarecibos)}).</p>
+        <p class="ppa-ayuda">Opcional. Normalmente se registra al final, cuando ya está todo pagado. ${auts.length > 1 ? 'Cada oficio de autorización puede tener su propia reducción: reemplaza el monto de ese oficio' : 'Reemplaza el monto autorizado'} por lo que realmente se ocupó. El contrato no puede quedar por debajo de lo amparado en contrarrecibos (${fmtMoneda.format(m.contrarecibos)}).</p>
+        ${selector}
         <div class="fila-formulario">
-          <label>¿Cuánto se gastó? (nuevo autorizado)
-            <input type="number" name="montoEjercido" step="0.01" min="${valor(Math.max(0.01, m.contrarecibos))}" max="${valor(tope)}" value="${valor(sugerido)}" data-autorizado="${valor(tope)}" data-facturado="${valor(m.contrarecibos)}" required>
+          <label>¿Cuánto se gastó? (nuevo autorizado${auts.length > 1 ? ' de este oficio' : ''})
+            <input type="number" name="montoEjercido" step="0.01" min="0.01" max="${valor(tope)}" value="${valor(sugerido)}" data-autorizado="${valor(tope)}" data-facturado="${auts.length > 1 ? '0' : valor(m.contrarecibos)}" required>
           </label>
           <label>Fecha
-            <input type="date" name="fecha" value="${p.reduccion ? p.reduccion.fecha : hoy}" required>
+            <input type="date" name="fecha" value="${elegido && elegido.reduccion ? elegido.reduccion.fecha : (p.reduccion && !auts.length ? p.reduccion.fecha : hoy)}" required>
           </label>
         </div>
         <p class="calculo-reduccion" data-calculo-reduccion>${tope !== null ? `Reducción: ${fmtMoneda.format(tope - sugerido)} · el contrato queda en ${fmtMoneda.format(sugerido)}` : ''}</p>
@@ -656,17 +744,16 @@ function renderPanelAccionPedido(p, idxActual) {
     case 'pedido_creado':
       return panel({
         titulo: 'Trámite del oficio de autorización', ruta: 'oficio-autorizacion', doc: 'documento-autorizacion', boton: 'Registrar oficio',
-        ayuda: `El oficio que autoriza el monto. El contrato es por ${fmtMoneda.format(m.contratado)}.`,
+        ayuda: `El oficio que autoriza el monto. El contrato es por ${fmtMoneda.format(m.contratado)}. Si son varios oficios, agrégalos: sus montos se suman.`,
         campos: `
-          <div class="fila-formulario">
-            <label>No. de oficio
-              <input type="text" name="noOficio" placeholder="Ej. SH/0716/2026" required>
-            </label>
-            <label>Monto autorizado
-              <input type="number" name="monto" step="0.01" min="0.01" value="${valor(m.contratado || '')}" required>
-            </label>
+          <div class="oficios-aut" data-oficios-aut>
+            ${filaOficioAut(1, valor(m.contratado || ''))}
           </div>
-          ${campoDocumento('Adjuntar el oficio de autorización')}`
+          <div class="oficios-aut-pie">
+            <button type="button" class="btn btn-texto btn-sm" data-agregar-oficio-aut><i class="ti ti-plus"></i> Agregar otro oficio</button>
+            <span class="oficios-aut-total" data-total-oficios-aut hidden></span>
+          </div>
+          ${campoDocumento('Adjuntar el oficio de autorización (un solo documento para todos)')}`
       });
 
     case 'oficio_autorizado':

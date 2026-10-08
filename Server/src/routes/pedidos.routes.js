@@ -22,6 +22,8 @@ const jwt = require('jsonwebtoken');
 const { driveConfigurado, subirADrive, enviarDesdeDrive, papeleraDrive } = require('../drive');
 
 router.use(requiereAutenticacion);
+// Ninguna petición entra antes de que termine la migración de arranque (al final del archivo)
+router.use(async (req, res, next) => { await listo; next(); });
 
 const ORDEN_ESTATUS = [
   'pedido_creado', 'oficio_autorizado', 'adecuacion',
@@ -56,7 +58,15 @@ function facturaAJson(f, archivos) {
   };
 }
 
-function pedidoAJson(row, oficios, archivos = [], facturas = []) {
+function autorizacionAJson(a, archivos) {
+  const doc = archivoAJson(archivos.find(x => x.tipo === 'reduccion-' + a.id));
+  return {
+    id: a.id, noOficio: a.folio, monto: Number(a.monto), fecha: a.fecha,
+    reduccion: a.red_monto !== null && a.red_monto !== undefined ? { montoEjercido: Number(a.red_monto), fecha: a.red_fecha, documento: doc } : null
+  };
+}
+
+function pedidoAJson(row, oficios, archivos = [], facturas = [], autorizaciones = []) {
   return {
     id: row.id,
     noContrato: row.no_contrato,
@@ -70,6 +80,8 @@ function pedidoAJson(row, oficios, archivos = [], facturas = []) {
     fechaSolicitud: row.fecha_solicitud,
     fechaEntrega: row.fecha_entrega,
     autorizacion: row.aut_folio ? { noOficio: row.aut_folio, monto: Number(row.aut_monto), fecha: row.aut_fecha } : null,
+    // Varios oficios de autorización: un solo documento para todos; cada uno con su reducción líquida
+    autorizaciones: autorizaciones.map(a => autorizacionAJson(a, archivos)),
     contrarecibo: row.contrarecibo_no ? { noContrarecibo: row.contrarecibo_no, fecha: row.contrarecibo_fecha, cuentaPorPagar: row.contrarecibo_cuenta, monto: Number(row.contrarecibo_monto) } : null,
     oficio: row.oficio_folio ? { folio: row.oficio_folio, monto: Number(row.oficio_monto), fecha: row.oficio_fecha } : null,
     facturas: facturas.map(f => facturaAJson(f, archivos)),
@@ -85,7 +97,7 @@ function pedidoAJson(row, oficios, archivos = [], facturas = []) {
     documentoAutorizacion: archivoAJson(archivos.find(a => a.tipo === 'autorizacion')),
     documentoContrarecibo: archivoAJson(archivos.find(a => a.tipo === 'contrarecibo')),
     documentoAdecuacion: archivoAJson(archivos.find(a => a.tipo === 'adecuacion')),
-    documentoReduccion: archivoAJson(archivos.find(a => a.tipo === 'reduccion'))
+    documentoReduccion: archivoAJson(archivos.find(a => a.tipo === 'reduccion') || archivos.find(a => /^reduccion-\d+$/.test(a.tipo)))
   };
 }
 
@@ -95,7 +107,8 @@ async function cargarPedidoCompleto(id) {
   const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios WHERE pedido_id = $1 ORDER BY id', [id]);
   const { rows: archivos } = await db.query('SELECT tipo, nombre, mime, tamano, subido_en FROM pedido_archivos WHERE pedido_id = $1', [id]);
   const { rows: facturas } = await db.query('SELECT * FROM pedido_facturas WHERE pedido_id = $1 ORDER BY id', [id]);
-  return pedidoAJson(pedidoRows[0], oficios, archivos, facturas);
+  const { rows: auts } = await db.query('SELECT * FROM pedido_autorizaciones WHERE pedido_id = $1 ORDER BY id', [id]);
+  return pedidoAJson(pedidoRows[0], oficios, archivos, facturas, auts);
 }
 
 function validarPasoAnterior(estatusActual, pasoEsperado, res) {
@@ -117,7 +130,8 @@ router.get('/', async (req, res) => {
     const { rows: oficios } = await db.query('SELECT * FROM pedido_oficios ORDER BY id');
     const { rows: archivos } = await db.query('SELECT pedido_id, tipo, nombre, mime, tamano, subido_en FROM pedido_archivos');
     const { rows: facturas } = await db.query('SELECT * FROM pedido_facturas ORDER BY id');
-    const resultado = pedidos.map(p => pedidoAJson(p, oficios.filter(o => o.pedido_id === p.id), archivos.filter(a => a.pedido_id === p.id), facturas.filter(f => f.pedido_id === p.id)));
+    const { rows: auts } = await db.query('SELECT * FROM pedido_autorizaciones ORDER BY id');
+    const resultado = pedidos.map(p => pedidoAJson(p, oficios.filter(o => o.pedido_id === p.id), archivos.filter(a => a.pedido_id === p.id), facturas.filter(f => f.pedido_id === p.id), auts.filter(a => a.pedido_id === p.id)));
     res.json({ ok: true, pedidos: resultado });
   } catch (error) {
     console.error('Error en GET /api/pedidos:', error);
@@ -164,13 +178,15 @@ function tipoDeRuta(ruta) {
   const m = /^documento-([a-z]+)(?:-(\d+))?$/.exec(String(ruta || ''));
   if (!m) return null;
   if (!m[2]) return PASOS_CON_DOCUMENTO.includes(m[1]) ? m[1] : null;
-  return ['factura', 'pago', 'contab', 'procpago', 'contrarecibo', 'entrega'].includes(m[1]) ? m[1] + '-' + m[2] : null;
+  return ['factura', 'pago', 'contab', 'procpago', 'contrarecibo', 'entrega', 'reduccion'].includes(m[1]) ? m[1] + '-' + m[2] : null;
 }
 const ETIQUETA_ARCHIVO = { contrato: 'Contrato', entrega: 'Entrega contrarrecibo', autorizacion: 'Oficio autorizacion', contrarecibo: 'Contrarrecibo', adecuacion: 'Oficio adecuacion', reduccion: 'Reduccion', factura: 'Factura', pago: 'Comprobante de pago', contab: 'Oficio contabilidad factura', procpago: 'Proceso de pago' };
 const etiquetaArchivo = tipo => { const [t, n] = tipo.split('-'); return (ETIQUETA_ARCHIVO[t] || 'Documento') + (n ? ' ' + n : ''); };
 
 // Los documentos de una factura o de su pago solo se aceptan si la factura es del contrato
 async function facturaDelContrato(tipo, id) {
+  const r = /^reduccion-(\d+)$/.exec(tipo);
+  if (r) return (await db.query('SELECT 1 FROM pedido_autorizaciones WHERE id = $1 AND pedido_id = $2', [Number(r[1]), id])).rows.length > 0;
   const m = /^(factura|pago|contab|procpago|contrarecibo|entrega)-(\d+)$/.exec(tipo);
   if (!m) return true;
   const { rows } = await db.query('SELECT 1 FROM pedido_facturas WHERE id = $1 AND pedido_id = $2', [Number(m[2]), id]);
@@ -194,7 +210,7 @@ const subirArchivo = tipo => async (req, res) => {
     const { rows: existe } = await db.query('SELECT id FROM pedidos WHERE id = $1', [id]);
     if (existe.length === 0) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
     const { rows: previo } = await db.query('SELECT drive_id FROM pedido_archivos WHERE pedido_id = $1 AND tipo = $2', [id, tipo]);
-    if (!(await facturaDelContrato(tipo, id))) return res.status(404).json({ ok: false, mensaje: 'Factura no encontrada' });
+    if (!(await facturaDelContrato(tipo, id))) return res.status(404).json({ ok: false, mensaje: tipo.startsWith('reduccion-') ? 'Oficio de autorización no encontrado' : 'Factura no encontrada' });
     const driveId = await subirADrive({ nombre: `${etiquetaArchivo(tipo)} - Contrato ${id} - ${nombre}`, mime, tamano, cuerpo: req });
     await db.query(
       `INSERT INTO pedido_archivos (pedido_id, tipo, nombre, mime, tamano, datos, drive_id) VALUES ($1,$2,$3,$4,$5,NULL,$6)
@@ -292,24 +308,137 @@ async function totalContrarecibos(id, excepto = 0) {
 // La reducción líquida NO suma ni resta: REEMPLAZA el autorizado. Desde ese
 // momento las ampliaciones/cancelaciones nuevas se aplican sobre ella; las
 // anteriores quedan absorbidas en la reducción.
-async function autorizadoVigente(id, row) {
+async function autorizadoVigente(id, row) { return autorizadoVigenteCon(db, id, row); }
+async function autorizadoVigenteCon(q, id, row) {
   const conReduccion = row.reduccion_monto !== null && row.reduccion_monto !== undefined;
   const base = conReduccion ? Number(row.reduccion_monto)
     : row.oficio_monto !== null ? Number(row.oficio_monto) : (row.aut_monto !== null ? Number(row.aut_monto) : null);
   if (base === null) return null;
-  const { rows } = await db.query(
+  const { rows } = await q.query(
     `SELECT COALESCE(SUM(CASE WHEN tipo='ampliacion' THEN monto ELSE -monto END),0) AS ajuste
        FROM pedido_oficios WHERE pedido_id=$1 AND posterior_reduccion = $2`, [id, conReduccion]);
   return base + Number(rows[0].ajuste);
 }
 
+// Los oficios de autorización viven en pedido_autorizaciones. En el contrato se
+// guardan sus totales (aut_* = suma de oficios; reduccion_* = suma de lo que quedó
+// tras las reducciones líquidas) para que el resto de los cálculos no cambie.
+// Cada reducción líquida reemplaza el monto de SU oficio.
+async function sincronizarAutorizacion(q, id) {
+  const { rows } = await q.query('SELECT * FROM pedido_autorizaciones WHERE pedido_id=$1 ORDER BY id', [id]);
+  if (!rows.length) {
+    await q.query('UPDATE pedidos SET aut_folio=NULL, aut_monto=NULL, aut_fecha=NULL, reduccion_monto=NULL, reduccion_fecha=NULL WHERE id=$1', [id]);
+    return;
+  }
+  const suma = rows.reduce((t, a) => t + Number(a.monto), 0);
+  const conRed = rows.filter(a => a.red_monto !== null);
+  const vigente = rows.reduce((t, a) => t + Number(a.red_monto !== null ? a.red_monto : a.monto), 0);
+  const fechas = rows.map(a => a.fecha).filter(Boolean).sort();
+  const fechasRed = conRed.map(a => a.red_fecha).filter(Boolean).sort();
+  await q.query('UPDATE pedidos SET aut_folio=$1, aut_monto=$2, aut_fecha=$3, reduccion_monto=$4, reduccion_fecha=$5 WHERE id=$6', [
+    rows.map(a => a.folio).join(', '), suma, fechas[0] || null,
+    conRed.length ? vigente : null, conRed.length ? (fechasRed.pop() || null) : null, id]);
+}
+
+// Lee los oficios de autorización enviados (lista "oficios" o uno solo como antes)
+function leerOficiosAut(b) {
+  const lista = Array.isArray(b.oficios) && b.oficios.length ? b.oficios : [b];
+  const hoyF = new Date().toISOString().slice(0, 10);
+  const datos = lista.map(o => ({ folio: texto(o.noOficio), monto: num(o.monto), fecha: fecha(o.fecha) || hoyF }));
+  for (const [i, d] of datos.entries()) {
+    const n = datos.length > 1 ? ' (oficio ' + (i + 1) + ')' : '';
+    if (!d.folio) return { error: 'Falta el No. de oficio' + n };
+    if (!(d.monto > 0)) return { error: 'El monto autorizado debe ser mayor a 0' + n };
+  }
+  const repetido = datos.find((d, i) => datos.findIndex(x => x.folio.toLowerCase() === d.folio.toLowerCase()) !== i);
+  if (repetido) return { error: 'El oficio ' + repetido.folio + ' está repetido' };
+  return { datos };
+}
+
+// Paso 2: registrar uno o varios oficios de autorización (se suman)
+router.put('/:id/oficio-autorizacion', async (req, res) => {
+  const id = Number(req.params.id);
+  const { datos, error } = leerOficiosAut(req.body || {});
+  if (error) return res.status(400).json({ ok: false, mensaje: error });
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT estatus FROM pedidos WHERE id=$1 FOR UPDATE', [id]);
+    if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' }); }
+    if (!validarPasoAnterior(rows[0].estatus, 'pedido_creado', res)) { await client.query('ROLLBACK'); return; }
+    for (const d of datos) {
+      await client.query('INSERT INTO pedido_autorizaciones (pedido_id, folio, monto, fecha) VALUES ($1,$2,$3,$4)', [id, d.folio, d.monto, d.fecha]);
+    }
+    await sincronizarAutorizacion(client, id);
+    await client.query("UPDATE pedidos SET estatus='oficio_autorizado', actualizado_en=now() WHERE id=$1", [id]);
+    await client.query('COMMIT');
+    await recalcularEstatus(id);
+    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Error en PUT /oficio-autorizacion:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al registrar el oficio de autorización' });
+  } finally { client.release(); }
+});
+
+// Agregar otro oficio de autorización a un contrato ya autorizado (su monto se suma)
+router.post('/:id/autorizaciones', async (req, res) => {
+  const id = Number(req.params.id);
+  const { datos, error } = leerOficiosAut({ oficios: [req.body || {}] });
+  if (error) return res.status(400).json({ ok: false, mensaje: error });
+  const d = datos[0];
+  try {
+    const { rows } = await db.query('SELECT estatus FROM pedidos WHERE id=$1', [id]);
+    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
+    if (ORDEN_ESTATUS.indexOf(rows[0].estatus) < ORDEN_ESTATUS.indexOf('oficio_autorizado')) {
+      return res.status(409).json({ ok: false, mensaje: 'Primero registra el oficio de autorización.' });
+    }
+    const { rows: dup } = await db.query('SELECT 1 FROM pedido_autorizaciones WHERE pedido_id=$1 AND lower(folio)=lower($2)', [id, d.folio]);
+    if (dup.length) return res.status(400).json({ ok: false, mensaje: 'Ya hay un oficio de autorización con ese número' });
+    await db.query('INSERT INTO pedido_autorizaciones (pedido_id, folio, monto, fecha) VALUES ($1,$2,$3,$4)', [id, d.folio, d.monto, d.fecha]);
+    await sincronizarAutorizacion(db, id);
+    await db.query('UPDATE pedidos SET actualizado_en=now() WHERE id=$1', [id]);
+    await recalcularEstatus(id);
+    res.status(201).json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    console.error('Error en POST /autorizaciones:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al agregar el oficio de autorización' });
+  }
+});
+
+// Quitar un oficio de autorización (debe quedar al menos uno y seguir cubriendo los contrarrecibos)
+router.delete('/:id/autorizaciones/:aid', async (req, res) => {
+  const id = Number(req.params.id), aid = Number(req.params.aid);
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT id FROM pedido_autorizaciones WHERE pedido_id=$1 FOR UPDATE', [id]);
+    if (!rows.some(r => r.id === aid)) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, mensaje: 'Oficio no encontrado' }); }
+    if (rows.length < 2) { await client.query('ROLLBACK'); return res.status(409).json({ ok: false, mensaje: 'El contrato debe conservar al menos un oficio de autorización.' }); }
+    await client.query('DELETE FROM pedido_autorizaciones WHERE id=$1', [aid]);
+    await sincronizarAutorizacion(client, id);
+    const { rows: p } = await client.query('SELECT * FROM pedidos WHERE id=$1', [id]);
+    const vigente = await autorizadoVigenteCon(client, id, p[0]);
+    const totCr = Number((await client.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1', [id])).rows[0].t);
+    if (vigente !== null && totCr > vigente + 0.005) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ ok: false, mensaje: 'Sin ese oficio, los contrarrecibos (' + totCr.toFixed(2) + ') superarían lo autorizado (' + vigente.toFixed(2) + ').' });
+    }
+    const { rows: arch } = await client.query("SELECT drive_id FROM pedido_archivos WHERE pedido_id=$1 AND tipo=$2 AND drive_id IS NOT NULL", [id, 'reduccion-' + aid]);
+    await client.query('DELETE FROM pedido_archivos WHERE pedido_id=$1 AND tipo=$2', [id, 'reduccion-' + aid]);
+    await client.query('COMMIT');
+    arch.forEach(a => papeleraDrive(a.drive_id));
+    await recalcularEstatus(id);
+    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Error en DELETE /autorizaciones:', error);
+    res.status(500).json({ ok: false, mensaje: 'Error al quitar el oficio de autorización' });
+  } finally { client.release(); }
+});
+
 // Pasos del contrato (los contrarrecibos tienen su propio camino, más abajo)
 const PASOS = {
-  'oficio-autorizacion': {
-    de: 'pedido_creado', a: 'oficio_autorizado', nombre: 'el oficio de autorización',
-    leer: b => ({ aut_folio: texto(b.noOficio), aut_monto: num(b.monto), aut_fecha: fecha(b.fecha) || new Date().toISOString().slice(0, 10) }),
-    validar: d => !d.aut_folio ? 'Falta el No. de oficio' : !(d.aut_monto > 0) ? 'El monto autorizado debe ser mayor a 0' : null
-  },
   'oficio-adecuacion': {
     de: 'oficio_autorizado', a: 'adecuacion', opcional: true, nombre: 'el oficio de adecuación',
     leer: b => ({ oficio_folio: texto(b.folio), oficio_monto: num(b.monto), oficio_fecha: fecha(b.fecha) }),
@@ -319,31 +448,45 @@ const PASOS = {
 
 // Reducción líquida: no es un paso del flujo. Se registra (o corrige) en cualquier
 // momento después del oficio de autorización, normalmente al final, ya pagado todo.
-// Reemplaza el autorizado vigente; no puede ser menor a lo amparado en contrarrecibos.
+// Cada oficio de autorización puede tener la suya: reemplaza el monto de ESE oficio.
+// El total no puede quedar por debajo de lo amparado en contrarrecibos.
+// Cuerpo: { autorizacionId, montoEjercido, fecha }. Sin autorizacionId solo vale si hay un oficio.
 router.put('/:id/reduccion', async (req, res) => {
   const id = Number(req.params.id);
   const b = req.body || {};
   const monto = num(b.montoEjercido), f = fecha(b.fecha) || new Date().toISOString().slice(0, 10);
+  if (!(monto > 0)) return res.status(400).json({ ok: false, mensaje: 'Indica cuánto se gastó (mayor a 0)' });
+  const client = await db.pool.connect();
   try {
-    const { rows } = await db.query('SELECT * FROM pedidos WHERE id=$1', [id]);
-    if (!rows.length) return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' });
-    const row = rows[0];
-    if (ORDEN_ESTATUS.indexOf(row.estatus) < ORDEN_ESTATUS.indexOf('oficio_autorizado')) {
-      return res.status(409).json({ ok: false, mensaje: 'Primero registra el oficio de autorización.' });
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM pedidos WHERE id=$1 FOR UPDATE', [id]);
+    if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, mensaje: 'Contrato no encontrado' }); }
+    if (ORDEN_ESTATUS.indexOf(rows[0].estatus) < ORDEN_ESTATUS.indexOf('oficio_autorizado')) {
+      await client.query('ROLLBACK'); return res.status(409).json({ ok: false, mensaje: 'Primero registra el oficio de autorización.' });
     }
-    if (!(monto > 0)) return res.status(400).json({ ok: false, mensaje: 'Indica cuánto se gastó (mayor a 0)' });
-    // Tope: el autorizado sin contar la reducción (así también se puede corregir)
-    const aut = await autorizadoVigente(id, { ...row, reduccion_monto: null });
-    if (aut !== null && monto > aut + 0.005) return res.status(400).json({ ok: false, mensaje: 'Lo gastado no puede ser mayor al monto autorizado (' + aut.toFixed(2) + ')' });
-    const cr = await totalContrarecibos(id);
-    if (monto < cr - 0.005) return res.status(400).json({ ok: false, mensaje: 'Lo gastado no puede ser menor a lo ya registrado en contrarrecibos (' + cr.toFixed(2) + ')' });
-    await db.query('UPDATE pedidos SET reduccion_monto=$1, reduccion_fecha=$2, actualizado_en=now() WHERE id=$3', [monto, f, id]);
+    const { rows: auts } = await client.query('SELECT * FROM pedido_autorizaciones WHERE pedido_id=$1 ORDER BY id', [id]);
+    const aid = num(b.autorizacionId);
+    const aut = aid ? auts.find(a => a.id === aid) : (auts.length === 1 ? auts[0] : null);
+    if (!aut) { await client.query('ROLLBACK'); return res.status(400).json({ ok: false, mensaje: auts.length > 1 ? 'Elige a qué oficio de autorización corresponde la reducción.' : 'Oficio de autorización no encontrado' }); }
+    if (monto > Number(aut.monto) + 0.005) { await client.query('ROLLBACK'); return res.status(400).json({ ok: false, mensaje: 'Lo gastado no puede ser mayor a lo autorizado en el oficio ' + aut.folio + ' (' + Number(aut.monto).toFixed(2) + ')' }); }
+    await client.query('UPDATE pedido_autorizaciones SET red_monto=$1, red_fecha=$2 WHERE id=$3', [monto, f, aut.id]);
+    await sincronizarAutorizacion(client, id);
+    const { rows: p } = await client.query('SELECT * FROM pedidos WHERE id=$1', [id]);
+    const vigente = await autorizadoVigenteCon(client, id, p[0]);
+    const cr = Number((await client.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1', [id])).rows[0].t);
+    if (vigente !== null && cr > vigente + 0.005) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ ok: false, mensaje: 'Con esa reducción el contrato quedaría en ' + vigente.toFixed(2) + ', menos de lo ya registrado en contrarrecibos (' + cr.toFixed(2) + ')' });
+    }
+    await client.query('UPDATE pedidos SET actualizado_en=now() WHERE id=$1', [id]);
+    await client.query('COMMIT');
     await recalcularEstatus(id);
-    res.json({ ok: true, pedido: await cargarPedidoCompleto(id) });
+    res.json({ ok: true, autorizacionId: aut.id, pedido: await cargarPedidoCompleto(id) });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error en PUT /reduccion:', error);
     res.status(500).json({ ok: false, mensaje: 'Error al registrar la reducción' });
-  }
+  } finally { client.release(); }
 });
 
 for (const [ruta, paso] of Object.entries(PASOS)) {};
@@ -656,19 +799,33 @@ router.put('/:id/editar-todo', async (req, res) => {
         [reqTexto(d.producto, 'el nombre del contrato (Datos del contrato)'), num(d.cantidad) || 1, texto(d.unidadMedida), texto(d.descripcion),
          texto(d.proveedor), texto(d.areaSolicitante), num(d.montoEstimado) || 0, reqFecha(d.fechaSolicitud, 'Datos del contrato'), id, texto(d.noContrato)]);
     }
-    if (b.autorizacion && row.aut_folio) {
-      const a = b.autorizacion;
-      await client.query('UPDATE pedidos SET aut_folio=$1, aut_monto=$2, aut_fecha=$3 WHERE id=$4',
-        [reqTexto(a.noOficio, 'el No. del oficio de autorización'), reqMonto(a.monto, 'el oficio de autorización'), reqFecha(a.fecha, 'el oficio de autorización'), id]);
+    // Oficios de autorización: "autorizaciones" = [{ id, noOficio, monto, fecha, reduccion: { montoEjercido, fecha } }]
+    // (compatibilidad: "autorizacion" / "reduccion" sueltos cuando el contrato tiene un solo oficio)
+    const { rows: autsAntes } = await client.query('SELECT * FROM pedido_autorizaciones WHERE pedido_id=$1 ORDER BY id', [id]);
+    let autsEdit = Array.isArray(b.autorizaciones) ? b.autorizaciones : [];
+    if (!autsEdit.length && autsAntes.length === 1 && (b.autorizacion || b.reduccion)) {
+      autsEdit = [{ id: autsAntes[0].id, ...(b.autorizacion || { noOficio: autsAntes[0].folio, monto: autsAntes[0].monto, fecha: autsAntes[0].fecha }), reduccion: b.reduccion }];
     }
+    for (const a of autsEdit) {
+      const previa = autsAntes.find(x => x.id === Number(a.id));
+      if (!previa) continue;
+      const nom = 'el oficio de autorización ' + (texto(a.noOficio) || previa.folio);
+      const montoA = reqMonto(a.monto, nom);
+      await client.query('UPDATE pedido_autorizaciones SET folio=$1, monto=$2, fecha=$3 WHERE id=$4',
+        [reqTexto(a.noOficio, 'el No. del oficio de autorización'), montoA, reqFecha(a.fecha, nom), previa.id]);
+      if (a.reduccion && previa.red_monto !== null) {
+        const red = reqMonto(a.reduccion.montoEjercido, 'la reducción líquida de ' + nom);
+        if (red > montoA + 0.005) fallo('La reducción líquida de ' + nom + ' no puede ser mayor a su monto (' + montoA.toFixed(2) + ')');
+        await client.query('UPDATE pedido_autorizaciones SET red_monto=$1, red_fecha=$2 WHERE id=$3', [red, reqFecha(a.reduccion.fecha, 'la reducción líquida de ' + nom), previa.id]);
+      }
+    }
+    const { rows: dupAut } = await client.query('SELECT lower(folio) AS f FROM pedido_autorizaciones WHERE pedido_id=$1 GROUP BY lower(folio) HAVING count(*) > 1', [id]);
+    if (dupAut.length) fallo('Hay dos oficios de autorización con el No. ' + dupAut[0].f);
+    await sincronizarAutorizacion(client, id);
     if (b.adecuacion && row.oficio_folio) {
       const a = b.adecuacion;
       await client.query('UPDATE pedidos SET oficio_folio=$1, oficio_monto=$2, oficio_fecha=$3 WHERE id=$4',
         [reqTexto(a.folio, 'el folio del oficio de adecuación'), reqMonto(a.monto, 'el oficio de adecuación'), reqFecha(a.fecha, 'el oficio de adecuación'), id]);
-    }
-    if (b.reduccion && row.reduccion_monto !== null) {
-      await client.query('UPDATE pedidos SET reduccion_monto=$1, reduccion_fecha=$2 WHERE id=$3',
-        [reqMonto(b.reduccion.montoEjercido, 'la reducción líquida'), reqFecha(b.reduccion.fecha, 'la reducción líquida'), id]);
     }
     for (const ofi of (Array.isArray(b.oficios) ? b.oficios : [])) {
       const tipo = ofi.tipo === 'cancelacion' ? 'cancelacion' : 'ampliacion';
@@ -720,7 +877,6 @@ router.put('/:id/editar-todo', async (req, res) => {
     const autSin = baseSin === null ? null : baseSin + await ajuste(false);
     const vigente = n.reduccion_monto !== null ? Number(n.reduccion_monto) + await ajuste(true) : autSin;
     const totCr = Number((await client.query('SELECT COALESCE(SUM(cr_monto),0) AS t FROM pedido_facturas WHERE pedido_id=$1', [id])).rows[0].t);
-    if (n.reduccion_monto !== null && autSin !== null && Number(n.reduccion_monto) > autSin + 0.005) fallo('La reducción líquida no puede ser mayor al autorizado (' + autSin.toFixed(2) + ')');
     if (vigente !== null && totCr > vigente + 0.005) fallo('Los contrarrecibos (' + totCr.toFixed(2) + ') suman más que el autorizado vigente (' + vigente.toFixed(2) + ')');
 
     await client.query('UPDATE pedidos SET actualizado_en=now() WHERE id=$1', [id]);
@@ -737,9 +893,27 @@ router.put('/:id/editar-todo', async (req, res) => {
   }
 });
 
-// Al arrancar: los contratos que estaban en el antiguo paso "reducción" vuelven al
-// flujo de contrarrecibos y se recalcula su estatus
-(async () => {
+// Al arrancar: tabla de oficios de autorización (pasa a ella el oficio único de cada
+// contrato existente, con su reducción) y los contratos que estaban en el antiguo
+// paso "reducción" vuelven al flujo de contrarrecibos; se recalcula su estatus.
+const listo = (async () => {
+  try {
+    await db.query(`CREATE TABLE IF NOT EXISTS pedido_autorizaciones (
+      id SERIAL PRIMARY KEY,
+      pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+      folio TEXT NOT NULL, monto NUMERIC(14,2) NOT NULL CHECK (monto > 0), fecha DATE,
+      red_monto NUMERIC(14,2), red_fecha DATE,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT now())`);
+    await db.query('CREATE INDEX IF NOT EXISTS pedido_autorizaciones_pedido ON pedido_autorizaciones (pedido_id)');
+    await db.query('ALTER TABLE pedidos ALTER COLUMN aut_folio TYPE TEXT');
+    await db.query(`INSERT INTO pedido_autorizaciones (pedido_id, folio, monto, fecha, red_monto, red_fecha)
+      SELECT p.id, p.aut_folio, p.aut_monto, p.aut_fecha, p.reduccion_monto, p.reduccion_fecha FROM pedidos p
+      WHERE p.aut_folio IS NOT NULL AND p.aut_monto > 0
+        AND NOT EXISTS (SELECT 1 FROM pedido_autorizaciones a WHERE a.pedido_id = p.id)`);
+    await db.query(`UPDATE pedido_archivos f SET tipo = 'reduccion-' || a.id FROM pedido_autorizaciones a
+      WHERE f.tipo = 'reduccion' AND f.pedido_id = a.pedido_id
+        AND (SELECT count(*) FROM pedido_autorizaciones x WHERE x.pedido_id = a.pedido_id) = 1`);
+  } catch (e) { console.error('Migrar oficios de autorización:', e.message); }
   try {
     await db.query("UPDATE pedidos SET estatus='factura_recibida' WHERE estatus='reduccion'");
     const { rows } = await db.query("SELECT id FROM pedidos WHERE estatus IN ('factura_recibida','en_contabilidad','en_pago','pagado')");

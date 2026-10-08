@@ -1406,3 +1406,14 @@ body { position: relative; isolation: isolate; }
 .ed-doc-actual b { color:var(--texto); font-weight:600; }
 .ed-doc .zona-archivo { margin:0; padding:10px 12px; flex-direction:row; gap:8px; min-height:0; }
 @media (max-width:600px) { .ed-doc { grid-template-columns:1fr; } }
+
+/* ---- Varios oficios de autorización ---- */
+.oficios-aut { display: flex; flex-direction: column; gap: 8px; }
+.fila-oficio-aut { align-items: flex-end; }
+.fila-oficio-aut .btn-icono { align-self: flex-end; margin-bottom: 6px; }
+.oficios-aut-pie { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.oficios-aut-total { font-size: 13px; color: var(--texto-suave, #6b5a5f); }
+.oficios-aut-total b { color: var(--guinda, #6B0F2B); }
+.form-autorizacion-pedido { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.form-autorizacion-pedido .btn { align-self: flex-start; }
+.detalle-autorizaciones tfoot td { border-top: 1px solid rgba(105, 28, 50, .18); }

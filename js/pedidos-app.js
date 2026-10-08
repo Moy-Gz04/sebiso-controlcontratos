@@ -196,6 +196,13 @@ function adjuntarEventosPedidos() {
       form.querySelectorAll('input[name], select[name], textarea[name]').forEach(el => {
         if (el.type !== 'file') cuerpo[el.name] = el.value.trim();
       });
+      // Oficio de autorización: uno o varios (se suman)
+      if (form.dataset.accion === 'oficio-autorizacion') {
+        cuerpo.oficios = [...form.querySelectorAll('[data-fila-oficio-aut]')].map(f => ({
+          noOficio: f.querySelector('[data-campo="noOficio"]').value.trim(),
+          monto: f.querySelector('[data-campo="monto"]').value.trim()
+        }));
+      }
       const doc = form.documento && form.documento.files[0];
       try {
         if (doc && doc.size > MAX_CONTRATO_MB * 1024 * 1024) throw new Error(`El documento pesa más de ${MAX_CONTRATO_MB} MB.`);
@@ -207,6 +214,8 @@ function adjuntarEventosPedidos() {
           rutaDoc = 'documento-contrarecibo-' + r.facturaId;
         } else {
           await StorePedidos.registrarPaso(id, form.dataset.accion, cuerpo);
+          // La reducción líquida guarda su documento en el oficio de autorización elegido
+          if (form.dataset.accion === 'reduccion' && cuerpo.autorizacionId) rutaDoc = 'documento-reduccion-' + cuerpo.autorizacionId;
         }
         let aviso = form.dataset.accion === 'contrarecibo-nuevo' ? 'Contrarrecibo registrado.' : form.dataset.accion === 'reduccion' ? 'Reducción líquida guardada.' : 'Paso registrado.', error = false;
         if (doc && rutaDoc) {
@@ -307,17 +316,22 @@ function adjuntarEventosPedidos() {
       e.preventDefault();
       const id = Number(form.dataset.pedidoId);
       const boton = form.querySelector('button[type="submit"]');
-      const cuerpo = {}, crs = {}, ofs = {};
+      const cuerpo = {}, crs = {}, ofs = {}, auts = {};
       form.querySelectorAll('input[name], select[name], textarea[name]').forEach(el => {
         if (el.type === 'file') return;
         const partes = el.name.split('.');
         const valor = el.value.trim();
         if (partes[0] === 'cr') { const c = crs[partes[1]] = crs[partes[1]] || { id: Number(partes[1]) }; (c[partes[2]] = c[partes[2]] || {})[partes[3]] = valor; }
         else if (partes[0] === 'of') { (ofs[partes[1]] = ofs[partes[1]] || { id: Number(partes[1]) })[partes[2]] = valor; }
+        else if (partes[0] === 'aut') {
+          const a = auts[partes[1]] = auts[partes[1]] || { id: Number(partes[1]) };
+          if (partes[2] === 'red') (a.reduccion = a.reduccion || {})[partes[3]] = valor; else a[partes[2]] = valor;
+        }
         else (cuerpo[partes[0]] = cuerpo[partes[0]] || {})[partes[1]] = valor;
       });
       cuerpo.contrarecibos = Object.values(crs);
       cuerpo.oficios = Object.values(ofs);
+      if (Object.keys(auts).length) cuerpo.autorizaciones = Object.values(auts);
       try {
         boton.disabled = true;
         // Documentos a sustituir (los que se eligieron en la ventana)
@@ -356,6 +370,84 @@ function adjuntarEventosPedidos() {
           } catch (err) { mostrarAviso(err.message, true); }
         }
       });
+    });
+  });
+
+  // ---- Oficios de autorización ----
+  contenedor.querySelectorAll('.detalle-autorizaciones').forEach(d => {
+    d.addEventListener('toggle', () => {
+      const id = Number(d.dataset.autorizacionesId);
+      if (d.open) tarjetasAutorizacionesAbiertas.add(id); else tarjetasAutorizacionesAbiertas.delete(id);
+    });
+  });
+  // Paso de autorización: agregar / quitar oficios y mostrar la suma
+  contenedor.querySelectorAll('[data-oficios-aut]').forEach(lista => {
+    const form = lista.closest('form');
+    const total = form.querySelector('[data-total-oficios-aut]');
+    const sumar = () => {
+      const filas = [...lista.querySelectorAll('[data-fila-oficio-aut]')];
+      const suma = filas.reduce((t, f) => t + (numMonto(f.querySelector('[data-campo="monto"]').value) || 0), 0);
+      total.hidden = filas.length < 2;
+      total.innerHTML = 'Total autorizado: <b>' + fmtMoneda.format(suma) + '</b>';
+    };
+    const renumerar = () => lista.querySelectorAll('[data-fila-oficio-aut]').forEach((f, i) => {
+      f.querySelector('label').firstChild.textContent = 'No. de oficio' + (i ? ' ' + (i + 1) : '') + ' ';
+    });
+    lista.addEventListener('input', sumar);
+    lista.addEventListener('click', (e) => {
+      const quitar = e.target.closest('[data-quitar-oficio-aut]');
+      if (!quitar) return;
+      quitar.closest('[data-fila-oficio-aut]').remove();
+      renumerar(); sumar();
+    });
+    form.querySelector('[data-agregar-oficio-aut]').addEventListener('click', () => {
+      const n = lista.querySelectorAll('[data-fila-oficio-aut]').length + 1;
+      lista.insertAdjacentHTML('beforeend', filaOficioAut(n));
+      lista.lastElementChild.querySelector('input').focus();
+      sumar();
+    });
+  });
+  // Agregar otro oficio de autorización a un contrato ya autorizado
+  contenedor.querySelectorAll('.form-autorizacion-pedido').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = Number(form.dataset.pedidoId);
+      try {
+        await StorePedidos.agregarAutorizacion(id, { noOficio: form.noOficio.value.trim(), monto: form.monto.value, fecha: form.fecha.value });
+        tarjetasPedidoExpandidas.add(id);
+        tarjetasAutorizacionesAbiertas.add(id);
+        await renderListadoPedidos();
+        mostrarAviso('Oficio de autorización agregado; su monto se sumó al autorizado.');
+      } catch (err) { mostrarAviso(err.message, true); }
+    });
+  });
+  contenedor.querySelectorAll('[data-eliminar-autorizacion]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pedidoId = Number(btn.dataset.pedidoId), aid = Number(btn.dataset.eliminarAutorizacion);
+      pedirConfirmacion({
+        titulo: 'Quitar oficio de autorización',
+        mensaje: '¿Quieres quitar este oficio? Su monto (y su reducción líquida, si tiene) dejará de contar en el autorizado.',
+        textoConfirmar: 'Sí, quitar', peligro: true,
+        accion: async () => {
+          try {
+            await StorePedidos.eliminarAutorizacion(pedidoId, aid);
+            tarjetasPedidoExpandidas.add(pedidoId);
+            await renderListadoPedidos();
+            mostrarAviso('Oficio de autorización quitado.');
+          } catch (err) { mostrarAviso(err.message, true); }
+        }
+      });
+    });
+  });
+  // Reducción: al elegir otro oficio, el tope y la sugerencia son los de ese oficio
+  contenedor.querySelectorAll('[data-elegir-oficio-red]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const op = sel.selectedOptions[0], form = sel.closest('form');
+      const inp = form.querySelector('input[name="montoEjercido"]'), fe = form.querySelector('input[name="fecha"]');
+      inp.dataset.autorizado = op.dataset.monto; inp.max = op.dataset.monto;
+      inp.value = op.dataset.red || op.dataset.monto;
+      if (op.dataset.fecha) fe.value = op.dataset.fecha;
+      inp.dispatchEvent(new Event('input'));
     });
   });
 
