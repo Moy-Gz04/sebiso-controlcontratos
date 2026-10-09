@@ -70,7 +70,7 @@
 
 /* Si tapa un botón o un campo, se asoma desde el borde de abajo; al pasar el ratón vuelve */
 .ms-flotante { transition: translate .35s cubic-bezier(.34, 1.3, .64, 1), scale .35s ease, opacity .25s ease; }
-.ms-flotante.ms-asomado { translate: 0 58%; scale: .82; opacity: .9; }
+.ms-flotante.ms-asomado { translate: 0 28%; scale: .86; opacity: .92; }
 .ms-flotante.ms-asomado .ms-zzz { display: none; }
 /* Espacio al final para que los últimos botones nunca queden debajo de la mascota */
 #pantalla-pedidos { padding-bottom: 96px; }
