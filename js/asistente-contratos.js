@@ -484,6 +484,133 @@
   }
   M.alTocarEsquina = abrirAyuda;
 
+  /* ─────────────── Lo acompaña en cada ventana de edición ─────────────── */
+  const TEXTO_VENTANA = {
+    'editar-todo': 'Corrige lo que haga falta. Si algo no cuadra, no se guarda nada y te digo qué revisar.',
+    'factura-nueva': 'Captura los datos tal como vienen en la factura y adjunta su PDF.',
+    factura: 'Registra la factura de este contrarrecibo; después sigue su camino normal.',
+    entrega: 'Pon la fecha en que se entregó y, si lo tienes, el documento de entrega.',
+    contabilidad: 'Captura el oficio con el que turnas la factura a contabilidad.',
+    contrarecibo: 'Captura el contrarrecibo tal como lo entregó contabilidad.',
+    'inicio-pago': 'Registra el comprobante con el que inicia el pago.',
+    pagado: 'Pon la fecha en que quedó pagada la factura.',
+    'corregir-factura': 'Corrige los datos de la factura; respeto el monto autorizado.',
+    'oficio-contabilidad': 'Completa el oficio de contabilidad que faltaba.',
+    'modal-nuevo-pedido': '¡Vamos a registrar un contrato! Empieza por el producto y el monto.',
+    'modal-editar-pedido': 'Actualiza los datos generales del contrato.'
+  };
+  function textoDeVentana(fondo) {
+    if (TEXTO_VENTANA[fondo.id]) return TEXTO_VENTANA[fondo.id];
+    const f = fondo.querySelector('form');
+    if (!f) return null;
+    if (f.classList.contains('form-editar-todo')) return TEXTO_VENTANA['editar-todo'];
+    return TEXTO_VENTANA[f.dataset.ruta || f.dataset.accion] || '¡Te ayudo con esta ventana!';
+  }
+  function acompanarVentanas() {
+    if (!M.ayudarEditar) return;
+    const acompanar = (fondo) => {
+      if (fondo.id === 'modal-confirmar-accion' || enLogin()) return;
+      const texto = textoDeVentana(fondo);
+      if (texto) setTimeout(() => { if (fondo.isConnected && fondo.classList.contains('activo')) M.ayudarEditar(fondo, { texto }); }, 30);
+    };
+    // Ventanas de las facturas (se arman al vuelo) y las fijas (nuevo / editar contrato)
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList && n.classList.contains('modal-cr-fondo')) acompanar(n); })))
+      .observe(document.body, { childList: true });
+    document.querySelectorAll('.modal-fondo[id]').forEach(fondo => {
+      new MutationObserver(() => { if (fondo.classList.contains('activo')) acompanar(fondo); })
+        .observe(fondo, { attributes: true, attributeFilter: ['class'] });
+    });
+    // Si falta un dato al guardar, salta hasta el campo y lo pide
+    let yaSenalo = 0;
+    document.addEventListener('invalid', (e) => {
+      if (!M.ayudando || !M.ayudando() || Date.now() - yaSenalo < 600) return;
+      yaSenalo = Date.now();
+      const campo = e.target, etiqueta = etiquetaDe(campo);
+      const texto = campo.validity.valueMissing ? `Falta ${etiqueta ? '«' + etiqueta + '»' : 'este dato'}.` : (campo.validationMessage || 'Revisa este dato.');
+      // Lo dice desde su lugar junto a la ventana (sin taparla) y marca el campo; sustituye el globito del navegador
+      if (!M.comentar(texto, { alerta: true })) return;
+      e.preventDefault();
+      campo.classList.add('ms-campo-senalado');
+      campo.focus();
+      const quitar = () => { campo.classList.remove('ms-campo-senalado'); if (M.ayudando()) M.comentar('¡Perfecto! Sigue con los demás datos.'); };
+      campo.addEventListener('input', quitar, { once: true });
+      campo.addEventListener('change', quitar, { once: true });
+    }, true);
+  }
+  function etiquetaDe(el) {
+    const l = el.closest('label');
+    const t = l ? [...l.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join(' ') : (el.getAttribute('aria-label') || el.placeholder || '');
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  /* ─────────────── Cerrar sesión: lo pregunta y se despide ─────────────── */
+  function prepararSalida() {
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-cerrar-sesion]');
+      if (!btn || btn.dataset.msOk) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      const nombre = nombreUsuario();
+      const h = new Date().getHours();
+      const ok = await M.preguntar({
+        titulo: 'Cerrar sesión', pregunta: `¿Quieres salir del sistema${nombre ? ', ' + nombre : ''}?`,
+        detalle: op ? 'Todavía estoy guardando algo: espera a que termine antes de salir.' : 'Lo que ya guardaste queda a salvo.',
+        btnOk: 'Sí, salir', iconoOk: 'ti-logout', estiloOk: 'dorado', btnCancel: 'Quedarme',
+        saludoOk: '¡Hasta pronto!', textoOk: h < 12 ? 'Que tengas un excelente día.' : h < 19 ? 'Que tengas una excelente tarde.' : 'Que descanses.',
+        saludoCancel: '¡Qué bien!', textoCancel: 'Sigo aquí para ayudarte.'
+      });
+      if (!ok) return;
+      try { sessionStorage.removeItem('msc_saludo_' + nombre); } catch (err) { /* sin storage */ }
+      btn.dataset.msOk = '1'; btn.click(); delete btn.dataset.msOk;
+    }, true);
+  }
+
+  /* ─────────────── Antes de guardar: muestra lo que se va a guardar y pide confirmación ─────────────── */
+  const FORMULARIOS = '.form-paso-pedido, .form-avance-cr, .form-editar-todo, #form-nuevo-pedido, #form-editar-pedido';
+  function resumenFormulario(form) {
+    const lineas = [];
+    form.querySelectorAll('input[name], select[name], textarea[name]').forEach(el => {
+      if (el.type === 'hidden' || el.disabled || el.closest('[hidden]')) return;
+      if (el.type === 'file') { if (el.files[0]) lineas.push('Documento: ' + el.files[0].name); return; }
+      if (el.type === 'checkbox' || el.type === 'radio') return;
+      let v = el.tagName === 'SELECT' ? (el.selectedOptions[0] ? el.selectedOptions[0].textContent : '') : el.value.trim();
+      if (!v) return;
+      if (el.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(v)) v = v.split('-').reverse().join('/');
+      if (el.dataset.moneda !== undefined && typeof numMonto === 'function' && !isNaN(numMonto(v))) v = dinero(numMonto(v));
+      lineas.push((etiquetaDe(el) || el.name) + ': ' + v);
+    });
+    return lineas;
+  }
+  function tituloFormulario(form) {
+    const t = form.querySelector('.fi-oficio-titulo') || form.closest('.panel-paso-actual')?.querySelector('.ppa-titulo') || form.closest('.modal-caja')?.querySelector('h2, h3, .modal-titulo');
+    return t ? t.textContent.replace(/\s*Opcional\s*$/, '').trim() : 'estos datos';
+  }
+  // Los montos fuera de rango los avisa la validación normal: no se pregunta antes
+  const montosValidos = (form) => [...form.querySelectorAll('input[data-moneda]')].every(el => {
+    if (el.value === '' || typeof numMonto !== 'function') return true;
+    const n = numMonto(el.value);
+    return !isNaN(n) && !(el.dataset.min !== undefined && n < Number(el.dataset.min) - 1e-9) && !(el.dataset.max && n > Number(el.dataset.max) + 1e-9);
+  });
+  function confirmarGuardados() {
+    document.addEventListener('submit', async (e) => {
+      const form = e.target;
+      if (!form.matches || !form.matches(FORMULARIOS) || form.dataset.msConfirmado) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      const seguir = () => { form.dataset.msConfirmado = '1'; try { form.requestSubmit(); } finally { delete form.dataset.msConfirmado; } };
+      if (!form.checkValidity() || !montosValidos(form)) { seguir(); return; }   // que la validación normal lo marque
+      const boton = form.querySelector('button[type="submit"]');
+      const accion = boton ? boton.textContent.trim() : 'Guardar';
+      const lineas = resumenFormulario(form);
+      const editar = form.classList.contains('form-editar-todo');
+      const ok = await M.preguntar({
+        titulo: 'Antes de guardar', pregunta: `¿${accion.replace(/^\w/, c => c.toUpperCase())}?`,
+        detalle: editar ? 'Se guardarán todos los cambios que hiciste en el contrato.' : `${tituloFormulario(form)}${lineas.length ? '\n' + lineas.slice(0, 7).join('\n') + (lineas.length > 7 ? '\n…' : '') : ''}`,
+        btnOk: 'Sí, guardar', iconoOk: 'ti-device-floppy', estiloOk: 'verde', btnCancel: 'Revisar',
+        saludoOk: '¡Va!', textoOk: 'Lo guardo ahora mismo…', saludoCancel: '¡Claro!', textoCancel: 'Revísalo con calma.'
+      });
+      if (ok && form.isConnected) seguir();
+    }, true);
+  }
+
   /* ─────────────── Que no tape nada: si hay un botón o campo debajo, se asoma desde el borde ─────────────── */
   function vigilarDebajo() {
     const esq = M.esquina && M.esquina();
@@ -543,6 +670,9 @@
     };
     new MutationObserver(revisar).observe(login, { attributes: true, attributeFilter: ['class'] });
     vigilarDebajo();
+    acompanarVentanas();
+    prepararSalida();
+    confirmarGuardados();
     revisar();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(vigilarPantalla, 0));

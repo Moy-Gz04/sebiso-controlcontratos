@@ -394,10 +394,12 @@ function msJunto(c, W, H) {
     activo.seguir = seguir;
 
     // Cuando la ventana se cierre (display:none), regresa a su esquina
+    // (o se quita de la página, como las ventanas que se arman al vuelo)
     const obs = new MutationObserver(() => {
-      if (getComputedStyle(overlay).display === 'none') { obs.disconnect(); regresar(); }
+      if (!overlay.isConnected || getComputedStyle(overlay).display === 'none') { obs.disconnect(); regresar(); }
     });
     obs.observe(overlay, { attributes: true, attributeFilter: ['style', 'class'] });
+    obs.observe(document.body, { childList: true });
   }
 
   async function regresar() {

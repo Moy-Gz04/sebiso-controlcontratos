@@ -74,3 +74,7 @@
 .ms-flotante.ms-asomado .ms-zzz { display: none; }
 /* Espacio al final para que los últimos botones nunca queden debajo de la mascota */
 #pantalla-pedidos { padding-bottom: 96px; }
+
+/* Nunca dos mascotas a la vez: mientras pregunta o trabaja, la de la ventana de edición se esconde */
+body:has(.ms-dlg-overlay) .ms-ayudante { visibility: hidden; }
+.ms-dlg-detalle { max-height: 40vh; overflow-y: auto; }
