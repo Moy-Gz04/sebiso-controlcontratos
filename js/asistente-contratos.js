@@ -677,6 +677,10 @@
     el.style.setProperty('--ms-ojo-dormido', gal ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 18'%3E%3Cpath d='M2.5 5 Q12 16 21.5 5' fill='none' stroke='%23F2EEFF' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E")` : 'initial');
     const g = (GAFAS[gafas] || GAFAS.ninguno).v;
     el.style.setProperty('--gafas', g ? 'block' : 'none');
+    // Con lentes elegidos, el ayudante de las ventanas de edición deja sus lentes de lectura
+    el.style.setProperty('--lentes-lectura', g ? 'none' : 'initial');
+    el.style.setProperty('--ojo-izq-lectura', g ? '32.5%' : 'initial');
+    el.style.setProperty('--ojo-der-lectura', g ? '57.3%' : 'initial');
     [['borde', 'g-borde'], ['bordeArriba', 'g-borde-arriba'], ['radio', 'g-radio'], ['fondo', 'g-fondo'], ['marco', 'g-marco'], ['clip', 'g-clip'],
      ['w', 'g-w'], ['h', 'g-h'], ['top', 'g-top'], ['rotIzq', 'g-rot-izq'], ['rotDer', 'g-rot-der']].forEach(([k, v]) => {
       el.style.setProperty('--' + v, g && g[k] ? g[k] : 'initial');
@@ -757,6 +761,7 @@
   function abrirPersonalizar() {
     if (document.querySelector('.ms-perso')) return;
     const elegido = { color: pref.color, estrella: pref.estrella || 'guinda', ropa: pref.ropa || 'ninguna', gafas: pref.gafas || 'ninguno' };
+    const inicial = { ...elegido, color: elegido.color || null };
     const opcion = (grupo, valor, texto, extra = '') => `<button type="button" class="ms-perso-op" role="radio" data-grupo="${grupo}" data-valor="${valor}" ${extra}><span>${texto}</span></button>`;
     const fondo = document.createElement('div');
     fondo.className = 'ms-dlg-overlay ms-perso';
@@ -826,7 +831,10 @@
     fondo.querySelector('[data-perso="cancelar"]').onclick = cerrar;
     fondo.querySelector('[data-perso="guardar"]').onclick = async () => {
       cerrar();
-      await guardarPref({ color: elegido.color || null, estrella: elegido.estrella, ropa: elegido.ropa, gafas: elegido.gafas });
+      // Solo lo que cambió en esta ventana (así no se pisa con algo viejo guardado en el equipo)
+      const nuevo = { color: elegido.color || null, estrella: elegido.estrella, ropa: elegido.ropa, gafas: elegido.gafas };
+      const cambios = Object.fromEntries(Object.entries(nuevo).filter(([k, v]) => v !== inicial[k]));
+      if (Object.keys(cambios).length) await guardarPref(cambios);
       if (encendido()) setTimeout(() => M.decir('¡Me encanta cómo me veo!', { duracion: 3500 }), 250);
       else avisoOriginal('Apariencia guardada.');
     };

@@ -268,7 +268,12 @@ html .ms-flotante.dormido .ms-ojo {
 
 /* ---- Lentes: dos micas sobre los ojos y el puente entre ellas ---- */
 .ms-gafas { position: absolute; inset: 0; pointer-events: none; z-index: 2; display: var(--gafas, none); }
-.con-lentes .ms-gafas { display: none; }           /* el ayudante ya trae sus lentes de lectura */
+/* Los lentes elegidos son solo para las ventanas: en la esquina no se los pone */
+.ms-flotante .ms-gafas { display: none; }
+/* En las ventanas de edición usa los lentes elegidos en lugar de sus lentes de lectura (y con los ojos en su lugar) */
+html .con-lentes .ms-lentes { display: var(--lentes-lectura, block); }
+html .con-lentes .ms-ojo-mov.izq { left: var(--ojo-izq-lectura, 27%); }
+html .con-lentes .ms-ojo-mov.der { left: var(--ojo-der-lectura, 63%); }
 .ms-gafas i {
   position: absolute; top: var(--g-top, 29%); width: var(--g-w, 27%); height: var(--g-h, 36%); box-sizing: border-box;
   border: var(--g-borde, 2px solid #2A2228); border-top: var(--g-borde-arriba, var(--g-borde, 2px solid #2A2228));
