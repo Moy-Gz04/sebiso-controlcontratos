@@ -82,19 +82,20 @@ body:has(.ms-dlg-overlay) .ms-ayudante { visibility: hidden; }
 /* ---- Color personalizado del asistente (se arma con un solo color: --ms-color) ---- */
 [data-ms-color] .minisebiso .ms-cuerpo,
 .ms-perso-vista[data-ms-color] .minisebiso .ms-cuerpo {
-  background:
+  /* --ms-fondo / --ms-sombra: los usa el color Galaxia; si no hay, se arma con --ms-color */
+  background: var(--ms-fondo,
     radial-gradient(ellipse 55% 40% at 30% 18%, color-mix(in srgb, var(--ms-color) 12%, #fff) 0%, transparent 70%),
     linear-gradient(180deg,
       color-mix(in srgb, var(--ms-color) 30%, #fff) 0%,
       color-mix(in srgb, var(--ms-color) 62%, #fff) 40%,
       var(--ms-color) 72%,
-      color-mix(in srgb, var(--ms-color) 78%, #000) 100%);
-  box-shadow:
+      color-mix(in srgb, var(--ms-color) 78%, #000) 100%));
+  box-shadow: var(--ms-sombra,
     inset 0 -7px 12px color-mix(in srgb, var(--ms-color) 55%, rgba(0, 0, 0, .35)),
     inset 0 4px 8px rgba(255, 255, 255, .85),
     inset -4px 0 9px color-mix(in srgb, var(--ms-color) 50%, rgba(0, 0, 0, .2)),
     0 0 0 1px color-mix(in srgb, var(--ms-color) 70%, #000 10%),
-    0 8px 18px rgba(60, 10, 25, .35);
+    0 8px 18px rgba(60, 10, 25, .35));
 }
 
 /* ---- Botones del encabezado: encender/apagar y personalizar ---- */
@@ -258,3 +259,49 @@ body:has(.ms-dlg-overlay) .ms-ayudante { visibility: hidden; }
 #pantalla-pedidos .nav-user .who span { display: block; }
 @media (max-width: 600px) { #pantalla-pedidos .nav-user { left: 12px; bottom: 12px; } }
 @media print { #pantalla-pedidos .nav-user { display: none; } }
+
+/* ---- Ojos en Galaxia (claros, para que se vean sobre el fondo oscuro) ---- */
+html .minisebiso .ms-ojo { background: var(--ms-ojo-fondo, radial-gradient(ellipse 60% 55% at 45% 40%, #2a2a30 0%, #0d0d10 70%, #050506 100%)); }
+html .ms-flotante.dormido .ms-ojo {
+  background: var(--ms-ojo-dormido, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 18'%3E%3Cg fill='none' stroke='%232a1219' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M2.5 5 Q12 16 21.5 5'/%3E%3C/g%3E%3C/svg%3E")) center / contain no-repeat;
+}
+
+/* ---- Lentes: dos micas sobre los ojos y el puente entre ellas ---- */
+.ms-gafas { position: absolute; inset: 0; pointer-events: none; z-index: 2; display: var(--gafas, none); }
+.con-lentes .ms-gafas { display: none; }           /* el ayudante ya trae sus lentes de lectura */
+.ms-gafas i {
+  position: absolute; top: var(--g-top, 29%); width: var(--g-w, 27%); height: var(--g-h, 36%); box-sizing: border-box;
+  border: var(--g-borde, 2px solid #2A2228); border-top: var(--g-borde-arriba, var(--g-borde, 2px solid #2A2228));
+  border-radius: var(--g-radio, 50%); background: var(--g-fondo, transparent); clip-path: var(--g-clip, none);
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, .35);
+}
+.ms-gafas i:first-child { left: calc(37.6% - var(--g-w, 27%) / 2); transform: rotate(var(--g-rot-izq, 0deg)); }
+.ms-gafas i:last-child { left: calc(62.4% - var(--g-w, 27%) / 2); transform: rotate(var(--g-rot-der, 0deg)); }
+.ms-gafas::before {
+  content: ""; position: absolute; left: 46.5%; width: 7%; top: calc(var(--g-top, 29%) + 9%); height: 3.4%;
+  border-radius: 2px; background: var(--g-marco, #2A2228);
+}
+/* ---- Galaxia: brillitos que salen flotando alrededor de la mascota ---- */
+.ms-brillos { position: absolute; inset: -12% -14%; pointer-events: none; display: var(--ms-brillos, none); z-index: 3; }
+.ms-brillos i {
+  position: absolute; width: 13%; aspect-ratio: 1; opacity: 0;
+  background: radial-gradient(circle, #fff 0 18%, #FFE48A 40%, #F5B83D 100%);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px rgba(150, 90, 255, .9));
+  animation: msBrillito 2.6s ease-in-out infinite;
+}
+.ms-brillos i:nth-child(1) { left: 6%;  top: 18%; animation-delay: 0s; }
+.ms-brillos i:nth-child(2) { left: 84%; top: 10%; animation-delay: .4s; width: 10%; background: radial-gradient(circle, #fff 0 18%, #FF9AD5 45%, #E0559F 100%); }
+.ms-brillos i:nth-child(3) { left: 90%; top: 58%; animation-delay: .9s; }
+.ms-brillos i:nth-child(4) { left: 2%;  top: 66%; animation-delay: 1.3s; width: 10%; background: radial-gradient(circle, #fff 0 18%, #9AD8FF 45%, #4E8DF0 100%); }
+.ms-brillos i:nth-child(5) { left: 46%; top: 0;   animation-delay: 1.7s; width: 11%; }
+.ms-brillos i:nth-child(6) { left: 70%; top: 86%; animation-delay: 2.1s; width: 9%; background: radial-gradient(circle, #fff 0 18%, #FF9AD5 45%, #E0559F 100%); }
+.ms-brillos i:nth-child(7) { left: 24%; top: 88%; animation-delay: 2.4s; width: 9%; background: radial-gradient(circle, #fff 0 18%, #9AD8FF 45%, #4E8DF0 100%); }
+@keyframes msBrillito {
+  0%   { opacity: 0; transform: translateY(6px) scale(.3) rotate(0deg); }
+  25%  { opacity: 1; transform: translateY(0) scale(1) rotate(45deg); }
+  60%  { opacity: .8; transform: translateY(-8px) scale(.8) rotate(90deg); }
+  100% { opacity: 0; transform: translateY(-16px) scale(.2) rotate(135deg); }
+}
+.ms-flotante.dormido .ms-brillos i { animation-duration: 4s; }
+@media (prefers-reduced-motion: reduce) { .ms-brillos i { animation: none; opacity: .8; } }

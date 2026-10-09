@@ -104,12 +104,16 @@ app.put('/api/preferencias', requiereAutenticacion, async (req, res) => {
   const asistente = {};
   if (a.activo !== undefined) asistente.activo = !!a.activo;
   if (a.color !== undefined) {
-    if (a.color !== null && !/^#[0-9a-f]{6}$/i.test(String(a.color))) return res.status(400).json({ ok: false, mensaje: 'El color no es válido' });
+    if (a.color !== null && a.color !== 'galaxia' && !/^#[0-9a-f]{6}$/i.test(String(a.color))) return res.status(400).json({ ok: false, mensaje: 'El color no es válido' });
     asistente.color = a.color;
   }
   if (a.estrella !== undefined) {
     if (!['guinda', 'dorada'].includes(a.estrella)) return res.status(400).json({ ok: false, mensaje: 'La estrella no es válida' });
     asistente.estrella = a.estrella;
+  }
+  if (a.gafas !== undefined) {
+    if (!['ninguno', 'redondos', 'cuadrados', 'sol', 'corazon', 'gato', 'dorados'].includes(a.gafas)) return res.status(400).json({ ok: false, mensaje: 'Los lentes no son válidos' });
+    asistente.gafas = a.gafas;
   }
   if (a.ropa !== undefined) {
     if (!['ninguna', 'mono', 'corbata', 'bufanda', 'saco'].includes(a.ropa)) return res.status(400).json({ ok: false, mensaje: 'La ropa no es válida' });

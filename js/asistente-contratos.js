@@ -25,7 +25,7 @@
   const saludoHora = () => { const h = new Date().getHours(); return h < 6 ? 'Buenas noches' : h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
   const enLogin = () => document.getElementById('pantalla-login')?.classList.contains('activa');
   // Preferencias del usuario (encendido y color); las pinta preferencias más abajo
-  let pref = { activo: true, color: null, estrella: 'guinda', ropa: 'ninguna' };
+  let pref = { activo: true, color: null, estrella: 'guinda', ropa: 'ninguna', gafas: 'ninguno' };
   const encendido = () => pref.activo !== false;
 
   /* ─────────────── Qué hace cada petición (para la ventana de trabajo) ─────────────── */
@@ -627,10 +627,11 @@
     { nombre: 'Menta', color: '#A8DCC2' },
     { nombre: 'Cielo', color: '#A9CBEF' },
     { nombre: 'Lavanda', color: '#C7B6EA' },
-    { nombre: 'Carbón', color: '#6E6A72' }
+    { nombre: 'Carbón', color: '#6E6A72' },
+    { nombre: 'Galaxia', color: 'galaxia', muestra: 'radial-gradient(circle at 30% 30%, #fff 0 4%, transparent 6%), radial-gradient(circle at 70% 60%, #fff 0 3%, transparent 5%), radial-gradient(ellipse at 30% 30%, #7B5CF0, transparent 60%), radial-gradient(ellipse at 75% 75%, #E0559F, transparent 60%), #1B1347' }
   ];
   const clavePref = () => 'msc_pref_' + ((typeof Store !== 'undefined' && Store.usuarioActual && Store.usuarioActual()) || '');
-  const PREF_BASE = { activo: true, color: null, estrella: 'guinda', ropa: 'ninguna' };
+  const PREF_BASE = { activo: true, color: null, estrella: 'guinda', ropa: 'ninguna', gafas: 'ninguno' };
   const ESTRELLAS = [{ clave: 'guinda', nombre: 'Guinda', muestra: '#9C2647' }, { clave: 'dorada', nombre: 'Dorada', muestra: '#D8B866' }];
   // Cada prenda se dibuja con dos capas (a y b) sobre el cuerpo: posición, tamaño, recorte y relleno
   const GUINDA = '#7A1E35', GUINDA_OSC = '#5A0F24', ORO = '#D8B866';
@@ -649,9 +650,37 @@
         bg: `linear-gradient(180deg, ${GUINDA} 0%, ${GUINDA_OSC} 100%)`, clip: 'polygon(0 0, 36% 0, 50% 55%, 64% 0, 100% 0, 100% 100%, 0 100%)' },
       a: { x: '47%', y: '80%', w: '6%', h: '14%', bg: `radial-gradient(circle at 50% 22%, ${ORO} 0 32%, transparent 34%), radial-gradient(circle at 50% 78%, ${ORO} 0 32%, transparent 34%)` } }
   };
-  function aplicarApariencia(el, { color, estrella, ropa } = {}) {
-    if (color) { el.style.setProperty('--ms-color', color); el.setAttribute('data-ms-color', ''); }
+  // Lentes: dos micas sobre los ojos (forma, marco y relleno por variables)
+  const GAFAS = {
+    ninguno: { nombre: 'Ninguno', icono: 'ti-circle-off' },
+    redondos: { nombre: 'Redondos', icono: 'ti-eyeglass', v: { borde: '2px solid #2A2228', radio: '50%', fondo: 'rgba(255,255,255,.12)', marco: '#2A2228' } },
+    cuadrados: { nombre: 'Cuadrados', icono: 'ti-eyeglass-2', v: { borde: '3px solid #1C1A1D', radio: '18%', fondo: 'rgba(255,255,255,.1)', marco: '#1C1A1D', w: '23.5%', h: '30%', top: '32%' } },
+    sol: { nombre: 'De sol', icono: 'ti-sunglasses', v: { borde: '2px solid #111', radio: '28% 28% 46% 46%', fondo: 'linear-gradient(160deg, #5A5866 0%, #17161C 55%, #000 100%)', marco: '#111', w: '23.5%', h: '31%', top: '31%' } },
+    corazon: { nombre: 'Corazón', icono: 'ti-heart', v: { borde: '0', radio: '0', fondo: 'linear-gradient(160deg, rgba(255,130,175,.9), rgba(200,30,90,.85))', marco: '#B0175A', clip: 'polygon(50% 100%, 6% 52%, 0 30%, 8% 8%, 28% 0, 50% 16%, 72% 0, 92% 8%, 100% 30%, 94% 52%)', w: '23.5%', h: '30%', top: '31%' } },
+    gato: { nombre: 'Ojo de gato', icono: 'ti-cat', v: { borde: '2px solid #4A0A1D', bordeArriba: '4px solid #4A0A1D', radio: '62% 62% 46% 46% / 72% 72% 42% 42%', fondo: 'rgba(255,255,255,.08)', marco: '#4A0A1D', rotIzq: '-10deg', rotDer: '10deg' } },
+    dorados: { nombre: 'Dorados', icono: 'ti-eyeglass', v: { borde: '2px solid #B8922F', radio: '50%', fondo: 'rgba(255,240,200,.15)', marco: '#B8922F' } }
+  };
+  const GALAXIA = {
+    fondo: 'radial-gradient(circle at 22% 30%, #fff 0 1.2%, transparent 1.8%), radial-gradient(circle at 70% 22%, #fff 0 1%, transparent 1.6%), radial-gradient(circle at 82% 62%, #fff 0 1.3%, transparent 2%), radial-gradient(circle at 35% 78%, #fff 0 .9%, transparent 1.5%), radial-gradient(circle at 55% 48%, rgba(255,255,255,.8) 0 .7%, transparent 1.2%), radial-gradient(circle at 12% 62%, rgba(255,255,255,.85) 0 .8%, transparent 1.4%), radial-gradient(ellipse 60% 45% at 28% 25%, rgba(123, 92, 240, .95), transparent 70%), radial-gradient(ellipse 55% 50% at 78% 78%, rgba(224, 85, 159, .85), transparent 70%), radial-gradient(ellipse 40% 35% at 70% 30%, rgba(80, 180, 255, .55), transparent 70%), linear-gradient(160deg, #241A5C 0%, #1B1347 45%, #0C0A24 100%)',
+    sombra: 'inset 0 -7px 12px rgba(10, 5, 40, .6), inset 0 4px 8px rgba(200, 180, 255, .45), 0 0 0 1px rgba(150, 120, 255, .6), 0 0 18px rgba(140, 100, 255, .55), 0 8px 18px rgba(20, 5, 50, .45)',
+    ojo: 'radial-gradient(ellipse 60% 55% at 45% 40%, #FFFFFF 0%, #E4E8FF 70%, #B9C2FF 100%)'
+  };
+  function aplicarApariencia(el, { color, estrella, ropa, gafas } = {}) {
+    if (color) { el.style.setProperty('--ms-color', color === 'galaxia' ? '#5B47C8' : color); el.setAttribute('data-ms-color', ''); }
     else { el.style.removeProperty('--ms-color'); el.removeAttribute('data-ms-color'); }
+    // 'initial' deja la variable vacía: así la vista previa no hereda la galaxia de la página
+    const gal = color === 'galaxia';
+    el.style.setProperty('--ms-fondo', gal ? GALAXIA.fondo : 'initial');
+    el.style.setProperty('--ms-sombra', gal ? GALAXIA.sombra : 'initial');
+    el.style.setProperty('--ms-ojo-fondo', gal ? GALAXIA.ojo : 'initial');
+    el.style.setProperty('--ms-brillos', gal ? 'block' : 'none');
+    el.style.setProperty('--ms-ojo-dormido', gal ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 18'%3E%3Cpath d='M2.5 5 Q12 16 21.5 5' fill='none' stroke='%23F2EEFF' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E")` : 'initial');
+    const g = (GAFAS[gafas] || GAFAS.ninguno).v;
+    el.style.setProperty('--gafas', g ? 'block' : 'none');
+    [['borde', 'g-borde'], ['bordeArriba', 'g-borde-arriba'], ['radio', 'g-radio'], ['fondo', 'g-fondo'], ['marco', 'g-marco'], ['clip', 'g-clip'],
+     ['w', 'g-w'], ['h', 'g-h'], ['top', 'g-top'], ['rotIzq', 'g-rot-izq'], ['rotDer', 'g-rot-der']].forEach(([k, v]) => {
+      el.style.setProperty('--' + v, g && g[k] ? g[k] : 'initial');
+    });
     el.style.setProperty('--ms-oro', estrella === 'dorada' ? '1' : '0');
     const r = ROPAS[ropa] || ROPAS.ninguna;
     ['a', 'b'].forEach(k => {
@@ -662,7 +691,19 @@
       });
     });
   }
-  function pintarColor(color) { aplicarApariencia(document.documentElement, color === null ? {} : { color: pref.color, estrella: pref.estrella, ropa: pref.ropa }); }
+  function pintarColor(color) { aplicarApariencia(document.documentElement, color === null ? {} : { color: pref.color, estrella: pref.estrella, ropa: pref.ropa, gafas: pref.gafas }); }
+
+  // Cada mascota (esquina, diálogos, ventanas, vista previa) lleva sus lentes y sus brillitos, ocultos hasta que se eligen
+  function equipar(raiz) {
+    (raiz.matches && raiz.matches('.minisebiso') ? [raiz] : []).concat([...(raiz.querySelectorAll ? raiz.querySelectorAll('.minisebiso') : [])]).forEach(m => {
+      const cuerpo = m.querySelector('.ms-cuerpo');
+      if (cuerpo && !cuerpo.querySelector('.ms-gafas')) cuerpo.insertAdjacentHTML('beforeend', '<span class="ms-gafas" aria-hidden="true"><i></i><i></i></span>');
+      if (!m.querySelector('.ms-brillos')) m.insertAdjacentHTML('beforeend', '<span class="ms-brillos" aria-hidden="true">' + '<i></i>'.repeat(7) + '</span>');
+    });
+  }
+  equipar(document.body);
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) equipar(n); }))).observe(document.body, { childList: true, subtree: true });
+
   function aplicarPref() {
     pintarColor(enLogin() ? null : true);
     const t = document.querySelector('.nav-asistente');
@@ -715,7 +756,7 @@
   // Ventana para personalizar: vista previa en vivo con color, estrella y ropa
   function abrirPersonalizar() {
     if (document.querySelector('.ms-perso')) return;
-    const elegido = { color: pref.color, estrella: pref.estrella || 'guinda', ropa: pref.ropa || 'ninguna' };
+    const elegido = { color: pref.color, estrella: pref.estrella || 'guinda', ropa: pref.ropa || 'ninguna', gafas: pref.gafas || 'ninguno' };
     const opcion = (grupo, valor, texto, extra = '') => `<button type="button" class="ms-perso-op" role="radio" data-grupo="${grupo}" data-valor="${valor}" ${extra}><span>${texto}</span></button>`;
     const fondo = document.createElement('div');
     fondo.className = 'ms-dlg-overlay ms-perso';
@@ -733,12 +774,16 @@
           <div class="ms-perso-colores" role="radiogroup" aria-label="Color">
             ${COLORES.map((c, i) => `<button type="button" class="ms-perso-color" role="radio" data-i="${i}" style="--c:${c.muestra || c.color}" aria-label="${c.nombre}"><span>${c.nombre}</span></button>`).join('')}
             <label class="ms-perso-color ms-perso-libre" title="Elige cualquier color">
-              <input type="color" value="${elegido.color || '#E6CB93'}" aria-label="Otro color"><span>Otro</span>
+              <input type="color" value="${/^#/.test(elegido.color || '') ? elegido.color : '#E6CB93'}" aria-label="Otro color"><span>Otro</span>
             </label>
           </div>
           <div class="ms-perso-seccion">Estrella</div>
           <div class="ms-perso-ops" role="radiogroup" aria-label="Estrella">
             ${ESTRELLAS.map(e => opcion('estrella', e.clave, e.nombre, `style="--c:${e.muestra}"`)).join('')}
+          </div>
+          <div class="ms-perso-seccion">Lentes</div>
+          <div class="ms-perso-ops" role="radiogroup" aria-label="Lentes">
+            ${Object.entries(GAFAS).map(([k, g]) => opcion('gafas', k, `<i class="ti ${g.icono}" aria-hidden="true"></i> ${g.nombre}`)).join('')}
           </div>
           <div class="ms-perso-seccion">Ropa</div>
           <div class="ms-perso-ops" role="radiogroup" aria-label="Ropa">
@@ -756,7 +801,7 @@
     const mascota = fondo.querySelector('.ms-perso-mascota');
     const libre = fondo.querySelector('input[type="color"]');
     const marcar = () => {
-      aplicarApariencia(vista, { color: elegido.color || '#E6CB93', estrella: elegido.estrella, ropa: elegido.ropa });
+      aplicarApariencia(vista, { color: elegido.color || '#E6CB93', estrella: elegido.estrella, ropa: elegido.ropa, gafas: elegido.gafas });
       if (!elegido.color) vista.removeAttribute('data-ms-color');
       fondo.querySelectorAll('.ms-perso-color[data-i]').forEach(b => {
         const c = COLORES[Number(b.dataset.i)].color;
@@ -781,7 +826,7 @@
     fondo.querySelector('[data-perso="cancelar"]').onclick = cerrar;
     fondo.querySelector('[data-perso="guardar"]').onclick = async () => {
       cerrar();
-      await guardarPref({ color: elegido.color || null, estrella: elegido.estrella, ropa: elegido.ropa });
+      await guardarPref({ color: elegido.color || null, estrella: elegido.estrella, ropa: elegido.ropa, gafas: elegido.gafas });
       if (encendido()) setTimeout(() => M.decir('¡Me encanta cómo me veo!', { duracion: 3500 }), 250);
       else avisoOriginal('Apariencia guardada.');
     };
