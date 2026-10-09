@@ -9,11 +9,11 @@
 // El menú tiene una sola sección, "Contratos" (el flujo que antes se llamaba Pedidos)
 document.querySelectorAll('[data-nav="pedidos"]').forEach(item => item.addEventListener('click', () => irAPedidos()));
 
-// Encabezado superior: nombre de usuario, inicial del avatar y fecha de hoy
+// Encabezado superior: nombre de usuario, icono del avatar y fecha de hoy
 function pintarSesion(usuario) {
   const nombre = usuario || '—';
   document.querySelectorAll('.sesion-usuario strong').forEach(el => el.textContent = nombre);
-  document.querySelectorAll('[data-avatar]').forEach(el => el.textContent = usuario ? usuario.charAt(0).toUpperCase() : '?');
+  document.querySelectorAll('[data-avatar]').forEach(el => { el.innerHTML = '<i class="ti ti-user" aria-hidden="true"></i>'; });
   const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   document.querySelectorAll('[data-fecha-hoy]').forEach(el => el.textContent = hoy.charAt(0).toUpperCase() + hoy.slice(1));
 }
