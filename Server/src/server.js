@@ -80,6 +80,46 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// ---------- Preferencias de cada usuario (por ahora, las del asistente: encendido y color) ----------
+const { requiereAutenticacion } = require('./middleware/auth');
+const tablaPreferencias = db.query(`CREATE TABLE IF NOT EXISTS usuario_preferencias (
+  usuario_id INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+  asistente JSONB NOT NULL DEFAULT '{}'::jsonb,
+  actualizado TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`).catch(err => console.error('No se pudo preparar usuario_preferencias:', err.message));
+
+app.get('/api/preferencias', requiereAutenticacion, async (req, res) => {
+  try {
+    await tablaPreferencias;
+    const { rows } = await db.query('SELECT asistente FROM usuario_preferencias WHERE usuario_id = $1', [req.usuario.id]);
+    res.json({ ok: true, asistente: rows[0] ? rows[0].asistente : {} });
+  } catch (error) {
+    console.error('Error en GET /api/preferencias:', error);
+    res.status(500).json({ ok: false, mensaje: 'No se pudieron leer tus preferencias' });
+  }
+});
+
+app.put('/api/preferencias', requiereAutenticacion, async (req, res) => {
+  const a = (req.body && req.body.asistente) || {};
+  const asistente = {};
+  if (a.activo !== undefined) asistente.activo = !!a.activo;
+  if (a.color !== undefined) {
+    if (a.color !== null && !/^#[0-9a-f]{6}$/i.test(String(a.color))) return res.status(400).json({ ok: false, mensaje: 'El color no es válido' });
+    asistente.color = a.color;
+  }
+  try {
+    await tablaPreferencias;
+    const { rows } = await db.query(`
+      INSERT INTO usuario_preferencias (usuario_id, asistente) VALUES ($1, $2)
+      ON CONFLICT (usuario_id) DO UPDATE SET asistente = usuario_preferencias.asistente || EXCLUDED.asistente, actualizado = NOW()
+      RETURNING asistente`, [req.usuario.id, JSON.stringify(asistente)]);
+    res.json({ ok: true, asistente: rows[0].asistente });
+  } catch (error) {
+    console.error('Error en PUT /api/preferencias:', error);
+    res.status(500).json({ ok: false, mensaje: 'No se pudieron guardar tus preferencias' });
+  }
+});
+
 app.use('/api/contratos', contratosRouter);
 app.use('/api/pedidos', pedidosRouter);
 

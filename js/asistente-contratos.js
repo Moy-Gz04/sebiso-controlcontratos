@@ -24,6 +24,9 @@
   };
   const saludoHora = () => { const h = new Date().getHours(); return h < 6 ? 'Buenas noches' : h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
   const enLogin = () => document.getElementById('pantalla-login')?.classList.contains('activa');
+  // Preferencias del usuario (encendido y color); las pinta preferencias más abajo
+  let pref = { activo: true, color: null };
+  const encendido = () => pref.activo !== false;
 
   /* ─────────────── Qué hace cada petición (para la ventana de trabajo) ─────────────── */
   const ETAPA = {
@@ -217,6 +220,7 @@
   const peticionOriginal = window.peticion;
   window.peticion = async function (ruta, opciones = {}) {
     const metodo = (opciones.method || 'GET').toUpperCase();
+    if (!encendido() && !op) return peticionOriginal(ruta, opciones);
     if (sinVentana(ruta, metodo)) {
       // Si ya hay una ventana abierta (p. ej. se recarga el listado después de guardar), la espera
       if (!op || metodo !== 'GET') return peticionOriginal(ruta, opciones);
@@ -259,7 +263,7 @@
       const esFalla = esError || /no se subió/i.test(texto);
       return finalizar(op, { texto, esError: esFalla });
     }
-    if (esError && !enLogin() && M.decir(texto, { duracion: 7000 })) {
+    if (esError && !enLogin() && encendido() && M.decir(texto, { duracion: 7000 })) {
       const esq = M.esquina && M.esquina();
       if (esq && !quieto) esq.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-8deg)' }, { transform: 'rotate(8deg)' }, { transform: 'rotate(0)' }], { duration: 420 });
       return;
@@ -271,7 +275,7 @@
   if (typeof window.pedirConfirmacion === 'function') {
     const confirmarOriginal = window.pedirConfirmacion;
     window.pedirConfirmacion = function ({ titulo, mensaje, textoConfirmar = 'Confirmar', peligro = false, accion }) {
-      if (enLogin()) return confirmarOriginal.apply(this, arguments);
+      if (enLogin() || !encendido()) return confirmarOriginal.apply(this, arguments);
       M.preguntar({
         titulo: titulo || '¿Seguro?', pregunta: mensaje, btnOk: textoConfirmar, btnCancel: 'Cancelar',
         iconoOk: peligro ? 'ti-trash' : 'ti-check', estiloOk: peligro ? '' : 'verde', tono: peligro ? 'aviso' : '',
@@ -338,6 +342,7 @@
     mensajes.forEach(m => { setTimeout(() => M.decir(m.texto, m), espera); espera += (m.duracion || 6500) + 350; });
   }
   function saludar() {
+    if (!encendido() || enLogin()) return;
     const nombre = nombreUsuario();
     const clave = 'saludo_' + nombre;
     if (sesion.get(clave)) return;
@@ -509,7 +514,7 @@
   function acompanarVentanas() {
     if (!M.ayudarEditar) return;
     const acompanar = (fondo) => {
-      if (fondo.id === 'modal-confirmar-accion' || enLogin()) return;
+      if (fondo.id === 'modal-confirmar-accion' || enLogin() || !encendido()) return;
       const texto = textoDeVentana(fondo);
       if (texto) setTimeout(() => { if (fondo.isConnected && fondo.classList.contains('activo')) M.ayudarEditar(fondo, { texto }); }, 30);
     };
@@ -547,7 +552,7 @@
   function prepararSalida() {
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-cerrar-sesion]');
-      if (!btn || btn.dataset.msOk) return;
+      if (!btn || btn.dataset.msOk || !encendido()) return;
       e.preventDefault(); e.stopImmediatePropagation();
       const nombre = nombreUsuario();
       const h = new Date().getHours();
@@ -593,7 +598,7 @@
   function confirmarGuardados() {
     document.addEventListener('submit', async (e) => {
       const form = e.target;
-      if (!form.matches || !form.matches(FORMULARIOS) || form.dataset.msConfirmado) return;
+      if (!form.matches || !form.matches(FORMULARIOS) || form.dataset.msConfirmado || !encendido()) return;
       e.preventDefault(); e.stopImmediatePropagation();
       const seguir = () => { form.dataset.msConfirmado = '1'; try { form.requestSubmit(); } finally { delete form.dataset.msConfirmado; } };
       if (!form.checkValidity() || !montosValidos(form)) { seguir(); return; }   // que la validación normal lo marque
@@ -609,6 +614,139 @@
       });
       if (ok && form.isConnected) seguir();
     }, true);
+  }
+
+  /* ─────────────── Preferencias por usuario: encender/apagar y color ─────────────── */
+  let refrescarPantalla = () => {};
+  const COLORES = [
+    { nombre: 'Dorado', color: null, muestra: '#E6CB93' },
+    { nombre: 'Perla', color: '#DCE2EC' },
+    { nombre: 'Rosa', color: '#F2B8C6' },
+    { nombre: 'Guinda', color: '#B0475F' },
+    { nombre: 'Durazno', color: '#F5B98E' },
+    { nombre: 'Menta', color: '#A8DCC2' },
+    { nombre: 'Cielo', color: '#A9CBEF' },
+    { nombre: 'Lavanda', color: '#C7B6EA' },
+    { nombre: 'Carbón', color: '#6E6A72' }
+  ];
+  const clavePref = () => 'msc_pref_' + ((typeof Store !== 'undefined' && Store.usuarioActual && Store.usuarioActual()) || '');
+  function pintarColor(color) {
+    const raiz = document.documentElement;
+    if (color) { raiz.style.setProperty('--ms-color', color); raiz.setAttribute('data-ms-color', ''); }
+    else { raiz.style.removeProperty('--ms-color'); raiz.removeAttribute('data-ms-color'); }
+  }
+  function aplicarPref() {
+    pintarColor(enLogin() ? null : pref.color);
+    const t = document.querySelector('.nav-asistente');
+    if (t) {
+      t.setAttribute('aria-pressed', encendido() ? 'true' : 'false');
+      t.title = encendido() ? 'Asistente encendido: toca para apagarlo' : 'Asistente apagado: toca para encenderlo';
+      t.querySelector('.nav-asis-texto').textContent = encendido() ? 'Asistente' : 'Asistente apagado';
+    }
+    if (!encendido()) { cerrarAyuda(); M.callar && M.callar(); }
+    refrescarPantalla();
+  }
+  async function cargarPref() {
+    try { const c = JSON.parse(localStorage.getItem(clavePref()) || 'null'); if (c) { pref = { activo: true, color: null, ...c }; aplicarPref(); } } catch (e) { /* sin storage */ }
+    try {
+      const d = await peticionOriginal('/preferencias');
+      pref = { activo: true, color: null, ...(d.asistente || {}) };
+      try { localStorage.setItem(clavePref(), JSON.stringify(pref)); } catch (e) { /* sin storage */ }
+      aplicarPref();
+    } catch (e) { /* sin conexión: se queda con lo guardado en este equipo */ }
+  }
+  async function guardarPref(cambios) {
+    pref = { ...pref, ...cambios };
+    try { localStorage.setItem(clavePref(), JSON.stringify(pref)); } catch (e) { /* sin storage */ }
+    aplicarPref();
+    try { await peticionOriginal('/preferencias', { method: 'PUT', body: JSON.stringify({ asistente: cambios }) }); }
+    catch (e) { avisoOriginal('Se aplicó en este equipo, pero no se pudo guardar en tu usuario: ' + e.message, true); }
+  }
+
+  function prepararBotonesEncabezado() {
+    const salir = document.querySelector('.navbar-top-right [data-cerrar-sesion]');
+    if (!salir || document.querySelector('.nav-asistente')) return;
+    const grupo = document.createElement('div');
+    grupo.className = 'nav-asis-grupo';
+    grupo.innerHTML = `
+      <button type="button" class="nav-asistente" aria-pressed="true">
+        <span class="nav-asis-switch" aria-hidden="true"><span></span></span>
+        <span class="nav-asis-texto">Asistente</span>
+      </button>
+      <button type="button" class="nav-asis-color" aria-label="Personalizar el color del asistente" title="Personalizar el asistente"><i class="ti ti-pencil" aria-hidden="true"></i></button>`;
+    salir.parentNode.insertBefore(grupo, salir);
+    grupo.querySelector('.nav-asistente').addEventListener('click', async () => {
+      const prender = !encendido();
+      await guardarPref({ activo: prender });
+      if (prender) setTimeout(() => M.decir('¡Aquí estoy de nuevo! Tócame cuando necesites ayuda.', { duracion: 4500 }), 150);
+      else avisoOriginal('Asistente apagado. Puedes encenderlo cuando quieras.');
+    });
+    grupo.querySelector('.nav-asis-color').addEventListener('click', abrirPersonalizar);
+    aplicarPref();
+  }
+
+  // Ventana para elegir el color: vista previa en vivo, colores sugeridos y uno libre
+  function abrirPersonalizar() {
+    if (document.querySelector('.ms-perso')) return;
+    let elegido = pref.color;
+    const fondo = document.createElement('div');
+    fondo.className = 'ms-dlg-overlay ms-perso';
+    fondo.innerHTML = `
+      <div class="ms-perso-caja" role="dialog" aria-modal="true" aria-labelledby="ms-perso-titulo">
+        <button type="button" class="ms-perso-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>
+        <div class="ms-perso-vista">
+          <div class="minisebiso ms-perso-mascota" aria-hidden="true">${mascotaHTML()}</div>
+        </div>
+        <div class="ms-perso-cuerpo">
+          <span class="ms-dlg-saludo">Personaliza a tu asistente</span>
+          <h2 id="ms-perso-titulo" class="ms-perso-titulo">¿De qué color me quieres?</h2>
+          <p class="ms-perso-ayuda">Se guarda en tu usuario: me verás así en cualquier equipo donde entres.</p>
+          <div class="ms-perso-colores" role="radiogroup" aria-label="Colores">
+            ${COLORES.map((c, i) => `<button type="button" class="ms-perso-color" role="radio" data-i="${i}" style="--c:${c.muestra || c.color}" aria-label="${c.nombre}"><span>${c.nombre}</span></button>`).join('')}
+            <label class="ms-perso-color ms-perso-libre" title="Elige cualquier color">
+              <input type="color" value="${elegido || '#E6CB93'}" aria-label="Otro color"><span>Otro</span>
+            </label>
+          </div>
+          <div class="ms-dlg-botones">
+            <button type="button" class="ms-dlg-btn ms-dlg-cancelar" data-perso="cancelar">Cancelar</button>
+            <button type="button" class="ms-dlg-btn ms-dlg-ok ms-dlg-ok-dorado" data-perso="guardar"><i class="ti ti-device-floppy"></i> Guardar</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(fondo);
+    requestAnimationFrame(() => fondo.classList.add('visible'));
+    const vista = fondo.querySelector('.ms-perso-vista');
+    const mascota = fondo.querySelector('.ms-perso-mascota');
+    const libre = fondo.querySelector('input[type="color"]');
+    const marcar = () => {
+      vista.style.setProperty('--ms-color', elegido || '#E6CB93');
+      vista.toggleAttribute('data-ms-color', !!elegido);
+      fondo.querySelectorAll('.ms-perso-color[data-i]').forEach(b => {
+        const c = COLORES[Number(b.dataset.i)].color;
+        b.setAttribute('aria-checked', String((c || null) === (elegido || null)));
+      });
+      const esLibre = !!elegido && !COLORES.some(c => c.color && c.color.toLowerCase() === elegido.toLowerCase());
+      fondo.querySelector('.ms-perso-libre').classList.toggle('activo', esLibre);
+      if (esLibre) fondo.querySelector('.ms-perso-libre').style.setProperty('--c', elegido);
+    };
+    const brincar = () => { if (!quieto) mascota.animate([{ transform: 'none' }, { transform: 'translateY(-14px) scale(1.04, .96)', offset: .4 }, { transform: 'none' }], { duration: 380, easing: 'ease-out' }); };
+    fondo.querySelectorAll('.ms-perso-color[data-i]').forEach(b => b.addEventListener('click', () => { elegido = COLORES[Number(b.dataset.i)].color; marcar(); brincar(); }));
+    libre.addEventListener('input', () => { elegido = libre.value; marcar(); });
+    libre.addEventListener('change', brincar);
+    const cerrar = () => { fondo.classList.remove('visible'); setTimeout(() => fondo.remove(), 220); document.removeEventListener('keydown', tecla); };
+    const tecla = (e) => { if (e.key === 'Escape') cerrar(); };
+    document.addEventListener('keydown', tecla);
+    fondo.addEventListener('mousedown', (e) => { if (e.target === fondo) cerrar(); });
+    fondo.querySelector('.ms-perso-cerrar').onclick = cerrar;
+    fondo.querySelector('[data-perso="cancelar"]').onclick = cerrar;
+    fondo.querySelector('[data-perso="guardar"]').onclick = async () => {
+      cerrar();
+      await guardarPref({ color: elegido || null });
+      if (encendido()) setTimeout(() => M.decir('¡Me encanta mi nuevo color!', { duracion: 3500 }), 250);
+      else avisoOriginal('Color guardado.');
+    };
+    marcar();
+    fondo.querySelector('.ms-perso-color[aria-checked="true"], .ms-perso-libre').focus();
   }
 
   /* ─────────────── Que no tape nada: si hay un botón o campo debajo, se asoma desde el borde ─────────────── */
@@ -654,7 +792,7 @@
     if (!esq || !login) return;
     let saludoPendiente = true;
     const revisar = () => {
-      const oculto = enLogin();
+      const oculto = enLogin() || !encendido();
       esq.classList.toggle('ms-oculto', oculto);
       if (oculto) { cerrarAyuda(); saludoPendiente = true; return; }
       if (saludoPendiente) {
@@ -668,12 +806,25 @@
         esperar();
       }
     };
-    new MutationObserver(revisar).observe(login, { attributes: true, attributeFilter: ['class'] });
+    refrescarPantalla = revisar;
+    // Al entrar se cargan las preferencias de ese usuario; al salir, la mascota vuelve a su color de siempre
+    let dentro = null;
+    const cambioPantalla = () => {
+      const ahora = !enLogin();
+      if (ahora !== dentro) {
+        dentro = ahora;
+        if (ahora) cargarPref();
+        else { pref = { activo: true, color: null }; aplicarPref(); }
+      }
+      revisar();
+    };
+    new MutationObserver(cambioPantalla).observe(login, { attributes: true, attributeFilter: ['class'] });
+    prepararBotonesEncabezado();
+    cambioPantalla();
     vigilarDebajo();
     acompanarVentanas();
     prepararSalida();
     confirmarGuardados();
-    revisar();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(vigilarPantalla, 0));
   else vigilarPantalla();
