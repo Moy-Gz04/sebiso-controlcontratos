@@ -1,0 +1,76 @@
+/* =========================================================
+   asistente-contratos.css
+   Ventana de trabajo de la mascota (cada acción que guarda algo):
+   barra de avance, pasos y resultado. Usa el diálogo de
+   minisebiso-flotante.css como base.
+   ========================================================= */
+
+.ms-trabajo { z-index: 2100; }
+.ms-trabajo .ms-dlg-botones[hidden] { display: none; }
+.ms-trabajo .ms-dlg-globo { width: min(380px, 74vw); }
+.ms-trabajo .ms-dlg-pregunta { font-size: 19px; min-height: 1.25em; }
+
+/* Mientras trabaja: se mece despacio, como concentrado */
+.ms-trabajando { animation: msTrabajar 1.1s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes msTrabajar {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50% { transform: rotate(2deg) translateY(-4px); }
+}
+
+.ms-trab-barra {
+  position: relative; height: 12px; margin-top: 16px; border-radius: 999px; overflow: hidden;
+  background: #F1E9DD; box-shadow: inset 0 1px 2px rgba(74, 10, 29, .12);
+}
+.ms-trab-barra span {
+  position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit;
+  background: linear-gradient(90deg, #6B1530, #9C2647 60%, #BC955C);
+  transition: width .2s linear, background .3s ease;
+}
+/* Brillo que recorre la barra mientras avanza */
+.ms-trab-barra span::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, .45) 50%, transparent 80%);
+  background-size: 200% 100%; animation: msBrillo 1.2s linear infinite;
+}
+@keyframes msBrillo { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.ms-trab-barra.listo span { background: linear-gradient(90deg, #2F8A3B, #3E9B47); }
+.ms-trab-barra.error span { background: linear-gradient(90deg, #C0262D, #94141E); }
+.ms-trab-barra.listo span::after, .ms-trab-barra.error span::after { animation: none; background: none; }
+
+.ms-trab-pie {
+  display: flex; justify-content: space-between; gap: 10px; margin-top: 6px;
+  font-size: 12px; color: #8a6d75; font-variant-numeric: tabular-nums;
+}
+.ms-trab-pct { color: #6B1530; }
+
+.ms-trab-pasos { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.ms-trab-pasos:empty { display: none; }
+.ms-trab-pasos li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5a3a44; }
+.ms-trab-pasos li .ti { font-size: 16px; flex-shrink: 0; }
+.ms-trab-pasos li.hecho .ti { color: #2F8A3B; }
+.ms-trab-pasos li.error .ti { color: #C0262D; }
+.ms-trab-pasos li.actual { font-weight: 600; color: #4A0A1D; }
+.ms-trab-pasos li.actual .ti { color: #BC955C; animation: msGirar 1s linear infinite; }
+@keyframes msGirar { to { transform: rotate(360deg); } }
+
+.ms-tono-exito .ms-dlg-saludo { color: #2F8A3B; }
+.ms-trabajo.ms-tono-error .ms-dlg-pregunta { font-size: 16px; font-weight: 700; }
+
+/* Contrato al que lleva la mascota desde su menú */
+.tc.ms-resaltado { animation: msResaltar 2.4s ease-out; }
+@keyframes msResaltar {
+  0%, 35% { box-shadow: 0 0 0 3px #BC955C, 0 10px 30px rgba(156, 122, 46, .35); }
+  100% { box-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-trabajando, .ms-trab-barra span::after, .ms-trab-pasos li.actual .ti, .tc.ms-resaltado { animation: none; }
+}
+@media print { .ms-trabajo { display: none; } }
+
+/* Si tapa un botón o un campo, se asoma desde el borde de abajo; al pasar el ratón vuelve */
+.ms-flotante { transition: translate .35s cubic-bezier(.34, 1.3, .64, 1), scale .35s ease, opacity .25s ease; }
+.ms-flotante.ms-asomado { translate: 0 58%; scale: .82; opacity: .9; }
+.ms-flotante.ms-asomado .ms-zzz { display: none; }
+/* Espacio al final para que los últimos botones nunca queden debajo de la mascota */
+#pantalla-pedidos { padding-bottom: 96px; }
