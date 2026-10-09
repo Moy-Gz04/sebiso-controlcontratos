@@ -25,7 +25,7 @@
   const saludoHora = () => { const h = new Date().getHours(); return h < 6 ? 'Buenas noches' : h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
   const enLogin = () => document.getElementById('pantalla-login')?.classList.contains('activa');
   // Preferencias del usuario (encendido y color); las pinta preferencias más abajo
-  let pref = { activo: true, color: null };
+  let pref = { activo: true, color: null, estrella: 'guinda', ropa: 'ninguna' };
   const encendido = () => pref.activo !== false;
 
   /* ─────────────── Qué hace cada petición (para la ventana de trabajo) ─────────────── */
@@ -630,27 +630,54 @@
     { nombre: 'Carbón', color: '#6E6A72' }
   ];
   const clavePref = () => 'msc_pref_' + ((typeof Store !== 'undefined' && Store.usuarioActual && Store.usuarioActual()) || '');
-  function pintarColor(color) {
-    const raiz = document.documentElement;
-    if (color) { raiz.style.setProperty('--ms-color', color); raiz.setAttribute('data-ms-color', ''); }
-    else { raiz.style.removeProperty('--ms-color'); raiz.removeAttribute('data-ms-color'); }
+  const PREF_BASE = { activo: true, color: null, estrella: 'guinda', ropa: 'ninguna' };
+  const ESTRELLAS = [{ clave: 'guinda', nombre: 'Guinda', muestra: '#9C2647' }, { clave: 'dorada', nombre: 'Dorada', muestra: '#D8B866' }];
+  // Cada prenda se dibuja con dos capas (a y b) sobre el cuerpo: posición, tamaño, recorte y relleno
+  const GUINDA = '#7A1E35', GUINDA_OSC = '#5A0F24', ORO = '#D8B866';
+  const ROPAS = {
+    ninguna: { nombre: 'Ninguna', icono: 'ti-circle-off' },
+    mono: { nombre: 'Moño', icono: 'ti-ribbon-health', a: { x: '33%', y: '71%', w: '34%', h: '15%',
+      bg: `radial-gradient(circle at 50% 50%, ${GUINDA_OSC} 0 15%, ${GUINDA} 16% 100%)`, clip: 'polygon(0 0, 50% 36%, 100% 0, 100% 100%, 50% 64%, 0 100%)' } },
+    corbata: { nombre: 'Corbata', icono: 'ti-tie', a: { x: '40.5%', y: '66%', w: '19%', h: '40%',
+      bg: `repeating-linear-gradient(135deg, transparent 0 5px, rgba(216, 184, 102, .55) 5px 7px), linear-gradient(180deg, ${GUINDA_OSC} 0 16%, ${GUINDA} 16% 100%)`,
+      clip: 'polygon(22% 0, 78% 0, 68% 16%, 100% 80%, 50% 100%, 0 80%, 32% 16%)' } },
+    bufanda: { nombre: 'Bufanda', icono: 'ti-wind',
+      a: { x: '-5%', y: '70%', w: '110%', h: '16%', r: '45% / 50%', bg: `repeating-linear-gradient(90deg, ${GUINDA} 0 12px, ${ORO} 12px 17px)` },
+      b: { x: '18%', y: '76%', w: '15%', h: '36%', r: '3px 3px 7px 7px', bg: `repeating-linear-gradient(180deg, ${GUINDA} 0 9px, ${ORO} 9px 13px)` } },
+    saco: { nombre: 'Saco', icono: 'ti-shirt',
+      b: { x: '0', y: '64%', w: '100%', h: '36%', r: '0 0 30% 30% / 0 0 45% 45%',
+        bg: `linear-gradient(180deg, ${GUINDA} 0%, ${GUINDA_OSC} 100%)`, clip: 'polygon(0 0, 36% 0, 50% 55%, 64% 0, 100% 0, 100% 100%, 0 100%)' },
+      a: { x: '47%', y: '80%', w: '6%', h: '14%', bg: `radial-gradient(circle at 50% 22%, ${ORO} 0 32%, transparent 34%), radial-gradient(circle at 50% 78%, ${ORO} 0 32%, transparent 34%)` } }
+  };
+  function aplicarApariencia(el, { color, estrella, ropa } = {}) {
+    if (color) { el.style.setProperty('--ms-color', color); el.setAttribute('data-ms-color', ''); }
+    else { el.style.removeProperty('--ms-color'); el.removeAttribute('data-ms-color'); }
+    el.style.setProperty('--ms-oro', estrella === 'dorada' ? '1' : '0');
+    const r = ROPAS[ropa] || ROPAS.ninguna;
+    ['a', 'b'].forEach(k => {
+      const c = r[k];
+      el.style.setProperty(`--ropa-${k}`, c ? 'block' : 'none');
+      [['x', 'x'], ['y', 'y'], ['w', 'w'], ['h', 'h'], ['bg', 'bg'], ['clip', 'clip'], ['r', 'r'], ['sombra', 'sombra']].forEach(([p, v]) => {
+        if (c && c[v]) el.style.setProperty(`--ropa-${k}-${p}`, c[v]); else el.style.removeProperty(`--ropa-${k}-${p}`);
+      });
+    });
   }
+  function pintarColor(color) { aplicarApariencia(document.documentElement, color === null ? {} : { color: pref.color, estrella: pref.estrella, ropa: pref.ropa }); }
   function aplicarPref() {
-    pintarColor(enLogin() ? null : pref.color);
+    pintarColor(enLogin() ? null : true);
     const t = document.querySelector('.nav-asistente');
     if (t) {
       t.setAttribute('aria-pressed', encendido() ? 'true' : 'false');
       t.title = encendido() ? 'Asistente encendido: toca para apagarlo' : 'Asistente apagado: toca para encenderlo';
-      t.querySelector('.nav-asis-texto').textContent = encendido() ? 'Asistente' : 'Asistente apagado';
     }
     if (!encendido()) { cerrarAyuda(); M.callar && M.callar(); }
     refrescarPantalla();
   }
   async function cargarPref() {
-    try { const c = JSON.parse(localStorage.getItem(clavePref()) || 'null'); if (c) { pref = { activo: true, color: null, ...c }; aplicarPref(); } } catch (e) { /* sin storage */ }
+    try { const c = JSON.parse(localStorage.getItem(clavePref()) || 'null'); if (c) { pref = { ...PREF_BASE, ...c }; aplicarPref(); } } catch (e) { /* sin storage */ }
     try {
       const d = await peticionOriginal('/preferencias');
-      pref = { activo: true, color: null, ...(d.asistente || {}) };
+      pref = { ...PREF_BASE, ...(d.asistente || {}) };
       try { localStorage.setItem(clavePref(), JSON.stringify(pref)); } catch (e) { /* sin storage */ }
       aplicarPref();
     } catch (e) { /* sin conexión: se queda con lo guardado en este equipo */ }
@@ -685,10 +712,11 @@
     aplicarPref();
   }
 
-  // Ventana para elegir el color: vista previa en vivo, colores sugeridos y uno libre
+  // Ventana para personalizar: vista previa en vivo con color, estrella y ropa
   function abrirPersonalizar() {
     if (document.querySelector('.ms-perso')) return;
-    let elegido = pref.color;
+    const elegido = { color: pref.color, estrella: pref.estrella || 'guinda', ropa: pref.ropa || 'ninguna' };
+    const opcion = (grupo, valor, texto, extra = '') => `<button type="button" class="ms-perso-op" role="radio" data-grupo="${grupo}" data-valor="${valor}" ${extra}><span>${texto}</span></button>`;
     const fondo = document.createElement('div');
     fondo.className = 'ms-dlg-overlay ms-perso';
     fondo.innerHTML = `
@@ -699,13 +727,22 @@
         </div>
         <div class="ms-perso-cuerpo">
           <span class="ms-dlg-saludo">Personaliza a tu asistente</span>
-          <h2 id="ms-perso-titulo" class="ms-perso-titulo">¿De qué color me quieres?</h2>
+          <h2 id="ms-perso-titulo" class="ms-perso-titulo">¿Cómo me quieres?</h2>
           <p class="ms-perso-ayuda">Se guarda en tu usuario: me verás así en cualquier equipo donde entres.</p>
-          <div class="ms-perso-colores" role="radiogroup" aria-label="Colores">
+          <div class="ms-perso-seccion">Color</div>
+          <div class="ms-perso-colores" role="radiogroup" aria-label="Color">
             ${COLORES.map((c, i) => `<button type="button" class="ms-perso-color" role="radio" data-i="${i}" style="--c:${c.muestra || c.color}" aria-label="${c.nombre}"><span>${c.nombre}</span></button>`).join('')}
             <label class="ms-perso-color ms-perso-libre" title="Elige cualquier color">
-              <input type="color" value="${elegido || '#E6CB93'}" aria-label="Otro color"><span>Otro</span>
+              <input type="color" value="${elegido.color || '#E6CB93'}" aria-label="Otro color"><span>Otro</span>
             </label>
+          </div>
+          <div class="ms-perso-seccion">Estrella</div>
+          <div class="ms-perso-ops" role="radiogroup" aria-label="Estrella">
+            ${ESTRELLAS.map(e => opcion('estrella', e.clave, e.nombre, `style="--c:${e.muestra}"`)).join('')}
+          </div>
+          <div class="ms-perso-seccion">Ropa</div>
+          <div class="ms-perso-ops" role="radiogroup" aria-label="Ropa">
+            ${Object.entries(ROPAS).map(([k, r]) => opcion('ropa', k, `<i class="ti ${r.icono}" aria-hidden="true"></i> ${r.nombre}`)).join('')}
           </div>
           <div class="ms-dlg-botones">
             <button type="button" class="ms-dlg-btn ms-dlg-cancelar" data-perso="cancelar">Cancelar</button>
@@ -719,19 +756,22 @@
     const mascota = fondo.querySelector('.ms-perso-mascota');
     const libre = fondo.querySelector('input[type="color"]');
     const marcar = () => {
-      vista.style.setProperty('--ms-color', elegido || '#E6CB93');
-      vista.toggleAttribute('data-ms-color', !!elegido);
+      aplicarApariencia(vista, { color: elegido.color || '#E6CB93', estrella: elegido.estrella, ropa: elegido.ropa });
+      if (!elegido.color) vista.removeAttribute('data-ms-color');
       fondo.querySelectorAll('.ms-perso-color[data-i]').forEach(b => {
         const c = COLORES[Number(b.dataset.i)].color;
-        b.setAttribute('aria-checked', String((c || null) === (elegido || null)));
+        b.setAttribute('aria-checked', String((c || null) === (elegido.color || null)));
       });
-      const esLibre = !!elegido && !COLORES.some(c => c.color && c.color.toLowerCase() === elegido.toLowerCase());
-      fondo.querySelector('.ms-perso-libre').classList.toggle('activo', esLibre);
-      if (esLibre) fondo.querySelector('.ms-perso-libre').style.setProperty('--c', elegido);
+      const esLibre = !!elegido.color && !COLORES.some(c => c.color && c.color.toLowerCase() === elegido.color.toLowerCase());
+      const lb = fondo.querySelector('.ms-perso-libre');
+      lb.classList.toggle('activo', esLibre);
+      if (esLibre) lb.style.setProperty('--c', elegido.color);
+      fondo.querySelectorAll('.ms-perso-op').forEach(b => b.setAttribute('aria-checked', String(elegido[b.dataset.grupo] === b.dataset.valor)));
     };
     const brincar = () => { if (!quieto) mascota.animate([{ transform: 'none' }, { transform: 'translateY(-14px) scale(1.04, .96)', offset: .4 }, { transform: 'none' }], { duration: 380, easing: 'ease-out' }); };
-    fondo.querySelectorAll('.ms-perso-color[data-i]').forEach(b => b.addEventListener('click', () => { elegido = COLORES[Number(b.dataset.i)].color; marcar(); brincar(); }));
-    libre.addEventListener('input', () => { elegido = libre.value; marcar(); });
+    fondo.querySelectorAll('.ms-perso-color[data-i]').forEach(b => b.addEventListener('click', () => { elegido.color = COLORES[Number(b.dataset.i)].color; marcar(); brincar(); }));
+    fondo.querySelectorAll('.ms-perso-op').forEach(b => b.addEventListener('click', () => { elegido[b.dataset.grupo] = b.dataset.valor; marcar(); brincar(); }));
+    libre.addEventListener('input', () => { elegido.color = libre.value; marcar(); });
     libre.addEventListener('change', brincar);
     const cerrar = () => { fondo.classList.remove('visible'); setTimeout(() => fondo.remove(), 220); document.removeEventListener('keydown', tecla); };
     const tecla = (e) => { if (e.key === 'Escape') cerrar(); };
@@ -741,9 +781,9 @@
     fondo.querySelector('[data-perso="cancelar"]').onclick = cerrar;
     fondo.querySelector('[data-perso="guardar"]').onclick = async () => {
       cerrar();
-      await guardarPref({ color: elegido || null });
-      if (encendido()) setTimeout(() => M.decir('¡Me encanta mi nuevo color!', { duracion: 3500 }), 250);
-      else avisoOriginal('Color guardado.');
+      await guardarPref({ color: elegido.color || null, estrella: elegido.estrella, ropa: elegido.ropa });
+      if (encendido()) setTimeout(() => M.decir('¡Me encanta cómo me veo!', { duracion: 3500 }), 250);
+      else avisoOriginal('Apariencia guardada.');
     };
     marcar();
     fondo.querySelector('.ms-perso-color[aria-checked="true"], .ms-perso-libre').focus();
@@ -814,7 +854,7 @@
       if (ahora !== dentro) {
         dentro = ahora;
         if (ahora) cargarPref();
-        else { pref = { activo: true, color: null }; aplicarPref(); }
+        else { pref = { ...PREF_BASE }; aplicarPref(); }
       }
       revisar();
     };

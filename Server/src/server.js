@@ -107,6 +107,14 @@ app.put('/api/preferencias', requiereAutenticacion, async (req, res) => {
     if (a.color !== null && !/^#[0-9a-f]{6}$/i.test(String(a.color))) return res.status(400).json({ ok: false, mensaje: 'El color no es válido' });
     asistente.color = a.color;
   }
+  if (a.estrella !== undefined) {
+    if (!['guinda', 'dorada'].includes(a.estrella)) return res.status(400).json({ ok: false, mensaje: 'La estrella no es válida' });
+    asistente.estrella = a.estrella;
+  }
+  if (a.ropa !== undefined) {
+    if (!['ninguna', 'mono', 'corbata', 'bufanda', 'saco'].includes(a.ropa)) return res.status(400).json({ ok: false, mensaje: 'La ropa no es válida' });
+    asistente.ropa = a.ropa;
+  }
   try {
     await tablaPreferencias;
     const { rows } = await db.query(`

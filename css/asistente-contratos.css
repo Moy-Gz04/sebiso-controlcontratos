@@ -177,3 +177,57 @@ body:has(.ms-dlg-overlay) .ms-ayudante { visibility: hidden; }
   .ms-perso-mascota { width: 104px; }
   .ms-perso-colores { grid-template-columns: repeat(5, 1fr); }
 }
+
+/* ---- Estrella dorada: una capa con la misma silueta, encima de la guinda (--ms-oro: 0 ó 1) ---- */
+.minisebiso .ms-estrella::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(135deg, #F8E9B8 0%, #D8B866 45%, #A8832F 75%, #8A6A22 100%);
+  -webkit-mask: url('../img/logo-hidalgo.png') center / contain no-repeat;
+  mask: url('../img/logo-hidalgo.png') center / contain no-repeat;
+  opacity: var(--ms-oro, 0);
+}
+
+/* ---- Ropa: dos capas (a y b) que la página arma con variables ---- */
+.minisebiso .ms-cuerpo::after,
+.minisebiso .ms-cuerpo::before {
+  content: ""; position: absolute; pointer-events: none;
+}
+.minisebiso .ms-cuerpo::after {
+  display: var(--ropa-a, none);
+  left: var(--ropa-a-x, 0); top: var(--ropa-a-y, 0); width: var(--ropa-a-w, 0); height: var(--ropa-a-h, 0);
+  background: var(--ropa-a-bg, none); clip-path: var(--ropa-a-clip, none);
+  border-radius: var(--ropa-a-r, 0); box-shadow: var(--ropa-a-sombra, none);
+}
+.minisebiso .ms-cuerpo::before {
+  display: var(--ropa-b, none); z-index: 0;
+  left: var(--ropa-b-x, 0); top: var(--ropa-b-y, 0); width: var(--ropa-b-w, 0); height: var(--ropa-b-h, 0);
+  background: var(--ropa-b-bg, none); clip-path: var(--ropa-b-clip, none);
+  border-radius: var(--ropa-b-r, 0); box-shadow: var(--ropa-b-sombra, none);
+}
+
+/* ---- Ventana: secciones y opciones de estrella / ropa ---- */
+.ms-perso-seccion { margin: 14px 0 8px; font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #9C7A2E; }
+.ms-perso-seccion:first-of-type { margin-top: 0; }
+.ms-perso-ops { display: flex; flex-wrap: wrap; gap: 8px; }
+.ms-perso-op {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #EADFCB; background: #FBF6EE; color: #4A0A1D; font: 700 12.5px 'Montserrat', 'Poppins', sans-serif;
+  transition: background .15s ease, border-color .15s ease;
+}
+.ms-perso-op span { display: inline-flex; align-items: center; gap: 6px; }
+.ms-perso-op[style]::before { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: inset 0 -2px 3px rgba(0,0,0,.2); }
+.ms-perso-op:hover { background: #F5E9D2; border-color: #D8C29A; }
+.ms-perso-op[aria-checked="true"] { background: #4A0A1D; border-color: #4A0A1D; color: #fff; }
+.ms-perso-op:focus-visible { outline: 2px solid #BC955C; outline-offset: 2px; }
+.ms-perso-caja { width: min(680px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; }
+.ms-perso .ms-dlg-botones { margin-top: 18px; }
+
+/* ---- Botón «Asistente»: negro y siempre del mismo tamaño ---- */
+.nav-asistente,
+.nav-asistente[aria-pressed="false"] {
+  background: #1C1A1D; color: #fff; border-color: rgba(255, 255, 255, .16);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+}
+.nav-asistente:hover { border-color: rgba(216, 184, 102, .8); }
+.nav-asistente .nav-asis-switch { background: #57525A; }
+.nav-asistente[aria-pressed="false"] .nav-asis-texto { opacity: .7; }
