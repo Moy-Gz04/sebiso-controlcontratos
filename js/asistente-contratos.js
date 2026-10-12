@@ -857,12 +857,14 @@
       // (clientWidth/Height: sin la barra de desplazamiento)
       const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
       const r = { left: vw - parseFloat(cs.right) - w + 4, top: vh - parseFloat(cs.bottom) - h + 4, right: vw - parseFloat(cs.right) - 4, bottom: vh - parseFloat(cs.bottom) - 4 };
+      if (![r.left, r.top, r.right, r.bottom].every(Number.isFinite) || r.right <= r.left) return;   // aún sin medidas (p. ej. mientras está en un diálogo)
       const tapa = [...document.querySelectorAll(INTERACTIVO)].some(el => {
         if (esq.contains(el) || el.closest('.ms-ayuda, .ms-dlg-overlay')) return false;
         const b = el.getBoundingClientRect();
         if (!b.width || !b.height || b.bottom < r.top || b.top > r.bottom || b.right < r.left || b.left > r.right) return false;
         // Solo si de verdad se ve ahí (no tapado por una ventana ni recortado)
         const x = Math.max(b.left, r.left) + 1, y = Math.max(b.top, r.top) + 1;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
         return document.elementsFromPoint(x, y).some(e => e === el || el.contains(e));
       });
       esq.classList.toggle('ms-asomado', tapa);
