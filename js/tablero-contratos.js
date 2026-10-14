@@ -121,7 +121,11 @@
     .tab-chip:focus-visible{ outline:2px solid #D8B866; outline-offset:2px; }
     .tab-kpi.monto{ --c:#A9824C; --c2:#D8B866; }
     .tab-kpi.monto b{ font-size:19px; }
-    .tab-ventana{ width:min(720px,100%) !important; }
+    .tab-ventana{ width:min(1000px,100%) !important; }
+    .tab-col{ height:min(380px, calc(100vh - 330px)) !important; gap:28px !important; padding-top:44px !important; }
+    .tab-col div, .tab-col-et span{ max-width:150px !important; }
+    .tab-col b.din{ font-size:16px !important; } .tab-col-pct{ font-size:12.5px !important; }
+    .tab-col-et{ gap:28px !important; } .tab-col-et span{ font-size:13px !important; }
     .tab-busca{ display:flex; align-items:flex-start; gap:10px; margin:-2px 0 14px; }
     .tab-busca label{ padding-top:10px; font-size:11px; font-weight:700; color:#7C5D31; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
     .tab-busca-caja{ position:relative; flex:1; min-width:0; }
