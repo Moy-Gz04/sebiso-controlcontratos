@@ -134,6 +134,30 @@
     .tab-busca-flecha{ position:absolute; right:4px; top:4px; width:30px; height:30px; margin:0; padding:0; border:0; border-radius:8px; background:transparent; color:#7C5D31; font-size:14px; cursor:pointer; box-shadow:none; }
     .tab-busca-flecha:hover{ background:#F6EEE3; }
     .tab-busca-lista{ display:block; position:static; margin-top:6px !important; max-height:220px; overflow-y:auto; margin:0; padding:6px; list-style:none; background:#fff; border:1px solid #E4D6C8; border-radius:12px; box-shadow:0 14px 30px rgba(61,20,32,.16); }
+    .flj{ padding:4px 4px 0; }
+    .flj-montos, .flj-grid, .flj-riel, .flj-et{ display:grid; }
+    .flj-montos b{ text-align:center; font:800 15px 'Montserrat',sans-serif; color:var(--c); font-variant-numeric:tabular-nums; }
+    .flj-cero{ color:#B9ADB2; font-weight:600; }
+    .flj-barras{ position:relative; height:min(260px, calc(100vh - 470px)); min-height:150px; margin-top:12px; border-bottom:2px solid #E4D6C8; }
+    .flj-barras svg{ position:absolute; inset:0; width:100%; height:100%; }
+    .flj-grid{ position:absolute; inset:0; }
+    .flj-col{ display:flex; align-items:flex-end; justify-content:center; height:100%; }
+    .flj-col i{ display:block; width:52%; height:var(--h); background:var(--c); border-radius:9px 9px 0 0; transform-origin:bottom; animation:fljCrece .9s cubic-bezier(.2,.9,.3,1) var(--d) both; transition:filter .15s; }
+    .flj-col i:hover{ filter:brightness(1.15); }
+    .flj-col i.vacia{ height:24px; background:none; border:2px dashed #CDB79A; border-bottom:0; animation:none; }
+    @keyframes fljCrece{ from{ transform:scaleY(0); } to{ transform:scaleY(1); } }
+    .flj-riel{ position:relative; margin-top:14px; }
+    .flj-riel::before{ content:''; position:absolute; left:12.5%; right:12.5%; top:50%; height:2px; background:#E4D6C8; }
+    .flj-riel div{ display:flex; justify-content:center; position:relative; }
+    .flj-riel span{ display:grid; place-items:center; width:24px; height:24px; border-radius:50%; font:800 11px 'Montserrat',sans-serif; color:#fff; background:var(--c); border:2px solid var(--c); }
+    .flj-riel span[data-activo="false"]{ background:#fff; color:var(--c); }
+    .flj-et{ margin-top:10px; text-align:center; }
+    .flj-et div{ display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .flj-et strong{ font:700 13px 'Montserrat',sans-serif; color:#2A1018; }
+    .flj-et small{ font-size:11px; color:#9A8A90; }
+    .flj-et em{ margin-top:3px; padding:2px 9px; border-radius:999px; border:1.5px solid var(--c); color:var(--c); font:700 11px 'Montserrat',sans-serif; font-style:normal; }
+    @media (prefers-reduced-motion:reduce){ .flj-col i{ animation:none; } }
+    .tab-busca-lista{ position:absolute !important; z-index:20; left:0; right:0; top:calc(100% + 6px); box-shadow:0 14px 30px rgba(61,20,32,.18); }
     .tab-busca-lista[hidden]{ display:none !important; }
     .tab-busca-lista li{ padding:8px 10px; border-radius:8px; font:600 12.5px 'Montserrat',sans-serif; color:#3D1420; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .tab-busca-lista li:hover{ background:#F6EEE3; }
@@ -226,16 +250,35 @@
       return base.map(v => v / 100);
     };
     const fmtPct = (p) => p.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+    // Flujo del dinero (mismo estilo que el de Programas): guinda -> dorado -> verde
     const MONTOS = [
-      { k: 'autorizado', t: 'Autorizado',   c: '#5F2132', c2: '#9A3C55' },
-      { k: 'facturado',  t: 'Facturado',    c: '#E39A2D', c2: '#F5C26B' },
-      { k: 'pagado',     t: 'Pagado',       c: '#2E9D5B', c2: '#5FCB8A' },
-      { k: 'porFacturar',t: 'Por facturar', c: '#2C8FC9', c2: '#62B6E6' },
+      { k: 'autorizado', t: 'Autorizado',   sub: 'monto vigente',          c: '#5F2132' },
+      { k: 'porFacturar',t: 'Por facturar', sub: 'aún sin factura',        c: '#A9824C' },
+      { k: 'facturado',  t: 'Facturado',    sub: 'facturas recibidas',     c: '#5E7A3A' },
+      { k: 'pagado',     t: 'Pagado',       sub: 'ya cubierto',            c: '#1A6E35' },
     ];
     const barras = (m) => {
+      const N = MONTOS.length, H = 100, slot = 100, medio = slot * 0.26;
       const max = Math.max(...MONTOS.map(x => m[x.k]), 1);
-      return `<div class="tab-col">${MONTOS.map(x => `<div><b class="din" data-n="${m[x.k]}" data-m="1">$0</b><em class="tab-col-pct">${x.k === 'autorizado' ? 'base (100%)' : m.autorizado ? fmtPct(Math.round(m[x.k] / m.autorizado * 10000) / 100) : ''}</em><i style="--c:${x.c}; --c2:${x.c2}" data-h="${m[x.k] / max * 85}%" title="${esc(x.t)}: ${dinero(m[x.k])}"></i></div>`).join('')}</div>
-        <div class="tab-col-et">${MONTOS.map(x => `<span>${esc(x.t)}</span>`).join('')}</div>`;
+      const alt = MONTOS.map(x => m[x.k] > 0 ? Math.max(m[x.k] / max * H, 3) : 0);
+      let listones = '';
+      for (let i = 0; i < N - 1; i++) {
+        if (!alt[i] && !alt[i + 1]) continue;
+        const x1 = i * slot + slot / 2 + medio, x2 = (i + 1) * slot + slot / 2 - medio, xm = (x1 + x2) / 2;
+        const y1 = H - alt[i], y2 = H - alt[i + 1];
+        listones += `<path d="M ${x1} ${y1} C ${xm} ${y1}, ${xm} ${y2}, ${x2} ${y2} L ${x2} ${H} L ${x1} ${H} Z" fill="${MONTOS[i].c}" opacity=".16"/>`;
+      }
+      const cols = `grid-template-columns:repeat(${N},1fr)`;
+      return `<div class="flj">
+        <div class="flj-montos" style="${cols}">${MONTOS.map(x => `${m[x.k] > 0 ? `<b class="din" style="--c:${x.c}" data-n="${m[x.k]}" data-m="1">$0</b>` : `<b class="flj-cero">$0</b>`}`).join('')}</div>
+        <div class="flj-barras">
+          <svg viewBox="0 0 ${N * slot} ${H}" preserveAspectRatio="none" aria-hidden="true">${listones}</svg>
+          <div class="flj-grid" style="${cols}">${MONTOS.map((x, i) => `<div class="flj-col">${alt[i] ? `<i style="--c:${x.c}; --h:${alt[i]}%; --d:${i * 90}ms" title="${esc(x.t)}: ${dinero(m[x.k])}"></i>` : '<i class="vacia"></i>'}</div>`).join('')}</div>
+        </div>
+        <div class="flj-riel" style="${cols}">${MONTOS.map((x, i) => `<div><span style="--c:${x.c}" data-activo="${m[x.k] > 0}">${i + 1}</span></div>`).join('')}</div>
+        <div class="flj-et" style="${cols}">${MONTOS.map((x, i) => `<div><strong>${esc(x.t)}</strong><small>${x.sub}</small>
+          <em style="--c:${x.c}">${i === 0 ? '100% · punto de partida' : (m.autorizado ? fmtPct(Math.round(m[x.k] / m.autorizado * 10000) / 100) : '0.00%') + ' del autorizado'}</em></div>`).join('')}</div>
+      </div>`;
     };
     const opciones = [{ i: '', nombre: `Todos los contratos (${num(t.total)})` }].concat(d.contratos.map((c, i) => ({ i: String(i), nombre: c.nombre })));
     cuerpo.innerHTML = `<div class="tab-tarjeta"><h3>Montos<small>porcentajes respecto al autorizado</small></h3>
