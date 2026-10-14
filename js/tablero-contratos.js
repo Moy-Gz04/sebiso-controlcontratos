@@ -122,14 +122,15 @@
     .tab-kpi.monto{ --c:#A9824C; --c2:#D8B866; }
     .tab-kpi.monto b{ font-size:19px; }
     .tab-ventana{ width:min(720px,100%) !important; }
-    .tab-busca{ display:flex; align-items:center; gap:10px; margin:-2px 0 14px; }
-    .tab-busca label{ font-size:11px; font-weight:700; color:#7C5D31; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+    .tab-busca{ display:flex; align-items:flex-start; gap:10px; margin:-2px 0 14px; }
+    .tab-busca label{ padding-top:10px; font-size:11px; font-weight:700; color:#7C5D31; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
     .tab-busca-caja{ position:relative; flex:1; min-width:0; }
     .tab-busca-caja input{ width:100%; box-sizing:border-box; margin:0; padding:9px 38px 9px 12px; border-radius:10px; border:1px solid #E4D6C8; background:#fff; color:#3D1420; font:600 12.5px 'Montserrat',sans-serif; }
     .tab-busca-caja input:focus{ outline:none; border-color:#A9824C; box-shadow:0 0 0 3px rgba(169,130,76,.22); }
-    .tab-busca-flecha{ position:absolute; right:4px; top:50%; transform:translateY(-50%); width:30px; height:30px; margin:0; padding:0; border:0; border-radius:8px; background:transparent; color:#7C5D31; font-size:14px; cursor:pointer; box-shadow:none; }
+    .tab-busca-flecha{ position:absolute; right:4px; top:4px; width:30px; height:30px; margin:0; padding:0; border:0; border-radius:8px; background:transparent; color:#7C5D31; font-size:14px; cursor:pointer; box-shadow:none; }
     .tab-busca-flecha:hover{ background:#F6EEE3; }
-    .tab-busca-lista{ position:absolute; z-index:5; left:0; right:0; top:calc(100% + 6px); max-height:240px; overflow-y:auto; margin:0; padding:6px; list-style:none; background:#fff; border:1px solid #E4D6C8; border-radius:12px; box-shadow:0 14px 30px rgba(61,20,32,.16); }
+    .tab-busca-lista{ display:block; position:static; margin-top:6px !important; max-height:220px; overflow-y:auto; margin:0; padding:6px; list-style:none; background:#fff; border:1px solid #E4D6C8; border-radius:12px; box-shadow:0 14px 30px rgba(61,20,32,.16); }
+    .tab-busca-lista[hidden]{ display:none !important; }
     .tab-busca-lista li{ padding:8px 10px; border-radius:8px; font:600 12.5px 'Montserrat',sans-serif; color:#3D1420; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .tab-busca-lista li:hover{ background:#F6EEE3; }
     .tab-busca-lista li.sel{ background:#5F2132; color:#fff; }
@@ -261,13 +262,14 @@
       graf.innerHTML = barras(idx === '' ? d.montos : d.contratos[Number(idx)].montos);
       animar(graf);
     };
-    input.addEventListener('focus', () => { input.select(); mostrar(''); });
+    input.addEventListener('focus', () => { input.value = ''; mostrar(''); });
+    input.addEventListener('click', () => { if (lista.hidden) mostrar(input.value); });
     input.addEventListener('input', () => mostrar(input.value));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { const p = lista.querySelector('li[data-i]'); if (p) elegir(p.dataset.i); e.preventDefault(); }
       if (e.key === 'Escape') { lista.hidden = true; input.value = opciones.find(o => o.i === elegido).nombre; e.stopPropagation(); }
     });
-    cuerpo.querySelector('.tab-busca-flecha').addEventListener('click', () => { if (lista.hidden) { input.focus(); } else lista.hidden = true; });
+    cuerpo.querySelector('.tab-busca-flecha').addEventListener('click', () => { if (lista.hidden) { if (document.activeElement === input) mostrar(input.value); else input.focus(); } else lista.hidden = true; });
     lista.addEventListener('mousedown', (e) => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); elegir(li.dataset.i); } });
     input.addEventListener('blur', () => setTimeout(() => { lista.hidden = true; input.value = opciones.find(o => o.i === elegido).nombre; }, 120));
   }

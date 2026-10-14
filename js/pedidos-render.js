@@ -121,15 +121,9 @@ function renderResumenContratos() {
       </div>
     </div>`;
 
-  cont.innerHTML =
-    kpi('ti-files', 'Contratos registrados', total, 'en el sistema', false) +
-    kpi('ti-progress', 'En proceso', enProceso, 'aún sin pagar', false, 'kpi-tramite') +
-    kpi('ti-circle-check', 'Pagados', pagados, fmtMoneda.format(pagadoMonto) + ' pagado', false, 'kpi-pagado') +
-    kpi('ti-coin', 'Monto en trámite', enTramite, 'autorizado, ejercido o contratado', true, 'kpi-destacado');
-
-  if (!reducirMovimiento()) {
-    cont.querySelectorAll('[data-contar]').forEach(el => contarHasta(el, Number(el.dataset.contar), el.dataset.moneda === '1'));
-  }
+  // Las tarjetas de resumen ya no se muestran en la vista principal (las cifras están en el tablero)
+  cont.innerHTML = '';
+  cont.style.display = 'none';
   renderFiltroEtapas();
 }
 
