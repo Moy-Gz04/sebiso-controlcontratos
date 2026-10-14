@@ -121,6 +121,19 @@
     .tab-chip:focus-visible{ outline:2px solid #D8B866; outline-offset:2px; }
     .tab-kpi.monto{ --c:#A9824C; --c2:#D8B866; }
     .tab-kpi.monto b{ font-size:19px; }
+    .tab-ventana{ width:min(720px,100%) !important; }
+    .tab-busca{ display:flex; align-items:center; gap:10px; margin:-2px 0 14px; }
+    .tab-busca label{ font-size:11px; font-weight:700; color:#7C5D31; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+    .tab-busca-caja{ position:relative; flex:1; min-width:0; }
+    .tab-busca-caja input{ width:100%; box-sizing:border-box; margin:0; padding:9px 38px 9px 12px; border-radius:10px; border:1px solid #E4D6C8; background:#fff; color:#3D1420; font:600 12.5px 'Montserrat',sans-serif; }
+    .tab-busca-caja input:focus{ outline:none; border-color:#A9824C; box-shadow:0 0 0 3px rgba(169,130,76,.22); }
+    .tab-busca-flecha{ position:absolute; right:4px; top:50%; transform:translateY(-50%); width:30px; height:30px; margin:0; padding:0; border:0; border-radius:8px; background:transparent; color:#7C5D31; font-size:14px; cursor:pointer; box-shadow:none; }
+    .tab-busca-flecha:hover{ background:#F6EEE3; }
+    .tab-busca-lista{ position:absolute; z-index:5; left:0; right:0; top:calc(100% + 6px); max-height:240px; overflow-y:auto; margin:0; padding:6px; list-style:none; background:#fff; border:1px solid #E4D6C8; border-radius:12px; box-shadow:0 14px 30px rgba(61,20,32,.16); }
+    .tab-busca-lista li{ padding:8px 10px; border-radius:8px; font:600 12.5px 'Montserrat',sans-serif; color:#3D1420; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tab-busca-lista li:hover{ background:#F6EEE3; }
+    .tab-busca-lista li.sel{ background:#5F2132; color:#fff; }
+    .tab-busca-lista li.vacio{ color:#9A8A90; cursor:default; font-weight:500; }
     .tab-sel{ display:flex; align-items:center; gap:8px; margin:-2px 0 12px; }
     .tab-sel label{ font-size:11px; font-weight:700; color:#7C5D31; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
     .tab-sel select{ flex:1; min-width:0; padding:7px 10px; border-radius:10px; border:1px solid #E4D6C8; background:#fff; color:#3D1420; font:600 12.5px 'Montserrat',sans-serif; cursor:pointer; }
@@ -219,33 +232,44 @@
       return `<div class="tab-col">${MONTOS.map(x => `<div><b class="din" data-n="${m[x.k]}" data-m="1">$0</b><em class="tab-col-pct">${x.k === 'autorizado' ? 'base (100%)' : m.autorizado ? fmtPct(Math.round(m[x.k] / m.autorizado * 10000) / 100) : ''}</em><i style="--c:${x.c}; --c2:${x.c2}" data-h="${m[x.k] / max * 85}%" title="${esc(x.t)}: ${dinero(m[x.k])}"></i></div>`).join('')}</div>
         <div class="tab-col-et">${MONTOS.map(x => `<span>${esc(x.t)}</span>`).join('')}</div>`;
     };
-    const derecha = `<div class="tab-tarjeta"><h3>Montos<small>porcentajes respecto al autorizado</small></h3>
-        <div class="tab-sel"><label for="tab-contrato">Contrato</label>
-          <select id="tab-contrato"><option value="">Todos los contratos (${num(t.total)})</option>
-            ${d.contratos.map((c, i) => `<option value="${i}">${esc(c.nombre)}</option>`).join('')}</select></div>
-        <div class="tab-area-graf">${barras(d.montos)}</div></div>`;
-
-    cuerpo.innerHTML = `
-      <div class="tab-kpis">
-        <div class="tab-kpi total" style="--i:0"><span>Contratos totales</span><b data-n="${t.total}">0</b><small>registrados en el sistema</small></div>
-        ${ESTADOS.map((e, i) => `<div class="tab-kpi" style="--c:${e.c}; --c2:${e.c2}; --i:${i + 1}"><span>${e.t}</span><b data-n="${t[e.k]}">0</b><small>${pct(t[e.k], i)}% del total</small></div>`).join('')}
-        <div class="tab-kpi monto" style="--i:${ESTADOS.length + 1}"><span>Monto vigente</span><b data-n="${d.montos.autorizado}" data-m="1">$0</b><small>${dinero(d.montos.pagado)} pagado</small></div>
-      </div>
-      <div class="tab-graficas">
-        <div class="tab-tarjeta"><h3>Distribución<small>por etapa</small></h3>
-          <div class="tab-dona">${dona(t)}
-            <div class="tab-leyenda">${leyenda.map((l, i) => `<div><i style="--c:${l.c}"></i>${esc(l.t)}<b>${num(l.v)}</b><em>${pct(l.v, i)}%</em></div>`).join('')}</div>
+    const opciones = [{ i: '', nombre: `Todos los contratos (${num(t.total)})` }].concat(d.contratos.map((c, i) => ({ i: String(i), nombre: c.nombre })));
+    cuerpo.innerHTML = `<div class="tab-tarjeta"><h3>Montos<small>porcentajes respecto al autorizado</small></h3>
+        <div class="tab-busca">
+          <label for="tab-contrato">Contrato</label>
+          <div class="tab-busca-caja">
+            <input id="tab-contrato" type="text" autocomplete="off" placeholder="Buscar por número, proveedor o producto…" value="${esc(opciones[0].nombre)}">
+            <button type="button" class="tab-busca-flecha" aria-label="Ver contratos">▾</button>
+            <ul class="tab-busca-lista" role="listbox" hidden></ul>
           </div>
         </div>
-        ${derecha}
-      </div>`;
+        <div class="tab-area-graf">${barras(d.montos)}</div></div>`;
     animar(cuerpo);
-    cuerpo.querySelector('#tab-contrato').addEventListener('change', (e) => {
-      const m = e.target.value === '' ? d.montos : d.contratos[Number(e.target.value)].montos;
+    const input = cuerpo.querySelector('#tab-contrato'), lista = cuerpo.querySelector('.tab-busca-lista');
+    let elegido = '';
+    const norm = (x) => String(x).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const mostrar = (filtro) => {
+      const q = norm(filtro || '');
+      const hay = opciones.filter(o => !q || norm(o.nombre).includes(q));
+      lista.innerHTML = hay.length ? hay.map(o => `<li role="option" data-i="${o.i}" class="${o.i === elegido ? 'sel' : ''}">${esc(o.nombre)}</li>`).join('') : '<li class="vacio">Sin coincidencias</li>';
+      lista.hidden = false;
+    };
+    const elegir = (idx) => {
+      elegido = idx;
+      input.value = opciones.find(o => o.i === idx).nombre;
+      lista.hidden = true;
       const graf = cuerpo.querySelector('.tab-area-graf');
-      graf.innerHTML = barras(m);
+      graf.innerHTML = barras(idx === '' ? d.montos : d.contratos[Number(idx)].montos);
       animar(graf);
+    };
+    input.addEventListener('focus', () => { input.select(); mostrar(''); });
+    input.addEventListener('input', () => mostrar(input.value));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { const p = lista.querySelector('li[data-i]'); if (p) elegir(p.dataset.i); e.preventDefault(); }
+      if (e.key === 'Escape') { lista.hidden = true; input.value = opciones.find(o => o.i === elegido).nombre; e.stopPropagation(); }
     });
+    cuerpo.querySelector('.tab-busca-flecha').addEventListener('click', () => { if (lista.hidden) { input.focus(); } else lista.hidden = true; });
+    lista.addEventListener('mousedown', (e) => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); elegir(li.dataset.i); } });
+    input.addEventListener('blur', () => setTimeout(() => { lista.hidden = true; input.value = opciones.find(o => o.i === elegido).nombre; }, 120));
   }
 
   /* Animaciones: cifras que cuentan, dona que se dibuja y barras que crecen */
