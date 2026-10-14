@@ -714,6 +714,8 @@
     if (t) {
       t.setAttribute('aria-pressed', encendido() ? 'true' : 'false');
       t.title = encendido() ? 'Asistente encendido: toca para apagarlo' : 'Asistente apagado: toca para encenderlo';
+      const tx = t.querySelector('.nav-asis-texto'); if (tx) tx.textContent = encendido() ? 'Encendido' : 'Apagado';
+      document.querySelector('.nav-asis-caja')?.classList.toggle('apagado', !encendido());
     }
     if (!encendido()) { cerrarAyuda(); M.callar && M.callar(); }
     refrescarPantalla();
@@ -738,22 +740,46 @@
   function prepararBotonesEncabezado() {
     const salir = document.querySelector('.navbar-top-right [data-cerrar-sesion]');
     if (!salir || document.querySelector('.nav-asistente')) return;
-    const grupo = document.createElement('div');
-    grupo.className = 'nav-asis-grupo';
-    grupo.innerHTML = `
-      <button type="button" class="nav-asistente" aria-pressed="true">
-        <span class="nav-asis-switch" aria-hidden="true"><span></span></span>
-        <span class="nav-asis-texto">Asistente</span>
+    // Botón con el ícono de soporte (audífonos con engrane) que despliega una
+    // ventana flotante con el interruptor y «Personalizar apariencia» (igual que Correspondencia)
+    const caja = document.createElement('div');
+    caja.className = 'nav-asis-caja';
+    caja.innerHTML = `
+      <button type="button" class="nav-asis-icono" aria-haspopup="true" aria-expanded="false" aria-label="Asistente" title="Asistente">
+        <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 27v-4a16 16 0 0 1 32 0v4"/>
+          <rect x="5" y="25" width="7" height="12" rx="3.5"/>
+          <rect x="36" y="25" width="7" height="12" rx="3.5"/>
+          <path d="M39.5 37v2a5 5 0 0 1-5 5H29"/>
+          <circle cx="26.5" cy="44" r="1.6" fill="currentColor"/>
+          <circle cx="24" cy="25" r="4"/>
+          <path d="M24 16.5v2.5M24 31v2.5M15.5 25h2.5M30 25h2.5M18 19l1.8 1.8M28.2 29.2L30 31M18 31l1.8-1.8M28.2 20.8L30 19"/>
+        </svg>
+        <span class="nav-asis-punto" aria-hidden="true"></span>
       </button>
-      <button type="button" class="nav-asis-color" aria-label="Personalizar el color del asistente" title="Personalizar el asistente"><i class="ti ti-pencil" aria-hidden="true"></i></button>`;
-    salir.parentNode.insertBefore(grupo, salir);
-    grupo.querySelector('.nav-asistente').addEventListener('click', async () => {
+      <div class="nav-asis-panel" role="dialog" aria-label="Asistente" hidden>
+        <div class="nav-asis-panel-tit">Asistente</div>
+        <div class="nav-asis-grupo">
+          <button type="button" class="nav-asistente" aria-pressed="true">
+            <span class="nav-asis-switch" aria-hidden="true"><span></span></span>
+            <span class="nav-asis-texto">Encendido</span>
+          </button>
+        </div>
+        <button type="button" class="nav-asis-perso"><i class="ti ti-palette" aria-hidden="true"></i> Personalizar apariencia</button>
+      </div>`;
+    salir.parentNode.insertBefore(caja, salir);
+    const icono = caja.querySelector('.nav-asis-icono'), panel = caja.querySelector('.nav-asis-panel');
+    const abrirPanel = (si) => { panel.hidden = !si; icono.setAttribute('aria-expanded', si ? 'true' : 'false'); caja.classList.toggle('abierta', si); };
+    icono.addEventListener('click', (e) => { e.stopPropagation(); abrirPanel(panel.hidden); });
+    document.addEventListener('pointerdown', (e) => { if (!panel.hidden && !caja.contains(e.target)) abrirPanel(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !panel.hidden) { abrirPanel(false); icono.focus(); } });
+    caja.querySelector('.nav-asis-perso').addEventListener('click', () => { abrirPanel(false); abrirPersonalizar(); });
+    caja.querySelector('.nav-asistente').addEventListener('click', async () => {
       const prender = !encendido();
       await guardarPref({ activo: prender });
       if (prender) setTimeout(() => M.decir('¡Aquí estoy de nuevo! Tócame cuando necesites ayuda.', { duracion: 4500 }), 150);
       else avisoOriginal('Asistente apagado. Puedes encenderlo cuando quieras.');
     });
-    grupo.querySelector('.nav-asis-color').addEventListener('click', abrirPersonalizar);
     aplicarPref();
   }
 
