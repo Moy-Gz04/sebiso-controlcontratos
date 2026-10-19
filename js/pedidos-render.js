@@ -13,6 +13,7 @@ const tarjetasHistorialAbierto = new Set();  // "Historial" desplegado
 const tarjetasAutorizacionesAbiertas = new Set();   // "Oficios de autorización" desplegados
 const tarjetasOficiosAbiertos = new Set();   // "Oficios de ampliación / cancelación" desplegados   // "Cantidades del contrato" desplegadas
 let filtroEtapa = '';          // '' = todas las etapas
+let filtroUP = '';             // '' = todas las áreas; 'sin' = sin unidad asignada; si no, el número de UP
 let ultimaTarjetaAbierta = null; // para animar solo la que se acaba de abrir
 let animarEntrada = true;      // la entrada escalonada solo al cargar o filtrar
 
@@ -124,6 +125,7 @@ function renderResumenContratos() {
   // Las tarjetas de resumen ya no se muestran en la vista principal (las cifras están en el tablero)
   cont.innerHTML = '';
   cont.style.display = 'none';
+  renderFiltroUP();
   renderFiltroEtapas();
 }
 
@@ -141,15 +143,35 @@ function contarHasta(el, destino, esMoneda) {
 
 // ---------- Filtro por etapa (pastillas con conteo) ----------
 
+// Contratos que cumplen el filtro de área (UP) elegido
+const contratosDeLaUP = () => !filtroUP ? pedidosCache : pedidosCache.filter(p => filtroUP === 'sin' ? !p.upNumero : p.upNumero === filtroUP);
+
+// Selector de área: una opción por UP que tiene contratos, con su conteo
+function renderFiltroUP() {
+  const sel = document.getElementById('filtro-up');
+  if (!sel) return;
+  const cuentas = {};
+  let sinUP = 0;
+  pedidosCache.forEach(p => { if (p.upNumero) cuentas[p.upNumero] = (cuentas[p.upNumero] || 0) + 1; else sinUP++; });
+  const nums = Object.keys(cuentas).sort();
+  if (filtroUP && filtroUP !== 'sin' && !cuentas[filtroUP]) filtroUP = '';
+  sel.innerHTML = `<option value="">Todas las áreas (${pedidosCache.length})</option>` +
+    nums.map(n => `<option value="${n}">UP ${n} · ${escaparHtml(nombreUPBonito(n))} (${cuentas[n]})</option>`).join('') +
+    (sinUP ? `<option value="sin">Sin unidad asignada (${sinUP})</option>` : '');
+  sel.value = filtroUP;
+  sel.classList.toggle('activo', !!filtroUP);
+}
+
 function renderFiltroEtapas() {
   const cont = document.getElementById('filtro-etapas');
   if (!cont) return;
-  const cuenta = (clave) => pedidosCache.filter(p => p.estatus === clave).length;
+  const delArea = contratosDeLaUP();
+  const cuenta = (clave) => delArea.filter(p => p.estatus === clave).length;
   const pastilla = (clave, texto, n) => `
     <button type="button" class="etapa-pill ${filtroEtapa === clave ? 'activa' : ''}" data-etapa="${clave}" aria-pressed="${filtroEtapa === clave}">
       ${texto}<span class="etapa-num">${n}</span>
     </button>`;
-  cont.innerHTML = pastilla('', 'Todas', pedidosCache.length) +
+  cont.innerHTML = pastilla('', 'Todas', delArea.length) +
     PASOS_PEDIDO.map(p => pastilla(p.clave, p.corto, cuenta(p.clave))).join('');
   cont.querySelectorAll('[data-etapa]').forEach(b => b.addEventListener('click', () => {
     filtroEtapa = b.dataset.etapa;
@@ -164,7 +186,7 @@ function renderFiltroEtapas() {
 function aplicarFiltrosPedidos() {
   const texto = document.getElementById('buscador-pedidos').value.trim().toLowerCase();
 
-  let lista = pedidosCache;
+  let lista = contratosDeLaUP();
   if (texto) {
     lista = lista.filter(p =>
       (p.noContrato || '').toLowerCase().includes(texto) ||
@@ -186,7 +208,7 @@ function aplicarFiltrosPedidos() {
     vacio.style.display = 'block';
     vacio.querySelector('p').textContent = pedidosCache.length === 0
       ? 'Aún no hay contratos registrados. Usa "Nuevo contrato" para capturar el primero.'
-      : 'Ningún contrato coincide con tu búsqueda o con la etapa elegida.';
+      : 'Ningún contrato coincide con tu búsqueda, el área o la etapa elegida.';
     return;
   }
   vacio.style.display = 'none';
@@ -197,6 +219,14 @@ function aplicarFiltrosPedidos() {
   ultimaTarjetaAbierta = null;
   adjuntarEventosPedidos();
 }
+
+document.getElementById('filtro-up').addEventListener('change', (e) => {
+  filtroUP = e.target.value;
+  animarEntrada = true;
+  renderFiltroUP();
+  renderFiltroEtapas();
+  aplicarFiltrosPedidos();
+});
 
 document.getElementById('buscador-pedidos').addEventListener('input', () => { animarEntrada = true; aplicarFiltrosPedidos(); });
 

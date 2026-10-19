@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-<link rel="stylesheet" href="css/estilos.css?v=20261012a">
+<link rel="stylesheet" href="css/estilos.css?v=20261019b">
 <link rel="stylesheet" href="css/asistente-contratos.css?v=20261014a">
 </head>
 <body>
@@ -138,6 +138,10 @@
             <i class="ti ti-search"></i>
             <input type="search" id="buscador-pedidos" placeholder="Buscar" aria-label="Buscar contratos">
           </div>
+          <label class="filtro-up" title="Mostrar solo los contratos de una unidad presupuestal">
+            <i class="ti ti-building-bank"></i>
+            <select id="filtro-up" aria-label="Filtrar por área (unidad presupuestal)"></select>
+          </label>
           <div class="filtro-etapas" id="filtro-etapas" role="group" aria-label="Filtrar por etapa"></div>
         </div>
 
@@ -282,11 +286,11 @@
 <div id="aviso-flotante"></div>
 
 <script src="js/carga-despertar.js?v=1" data-api="sebiso-controlcontratos.onrender.com" data-ping="https://sebiso-controlcontratos.onrender.com/" data-estrella="img/logo-hidalgo.png"></script>
-<script src="js/config.js?v=20261019a"></script>
+<script src="js/config.js?v=20261019b"></script>
 <script src="js/state.js?v=20261012a"></script>
 <script src="js/pedidos-state.js?v=20261012a"></script>
 <script src="js/render.js?v=20261012a"></script>
-<script src="js/pedidos-render.js?v=20261019a"></script>
+<script src="js/pedidos-render.js?v=20261019b"></script>
 <script src="js/modals.js?v=20261012a"></script>
 <script src="js/pedidos-modals.js?v=20261019a"></script>
 <script src="js/app.js?v=20261012a"></script>
@@ -298,6 +302,6 @@
 <script src="js/montos-input.js?v=20261012a"></script>
 <script src="js/minisebiso-flotante.js?v=20261012a"></script>
 <script src="js/asistente-contratos.js?v=20261014a"></script>
-<script src="js/tablero-contratos.js?v=6"></script>
+<script src="js/tablero-contratos.js?v=7"></script>
 </body>
 </html>

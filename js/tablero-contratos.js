@@ -52,7 +52,10 @@
       background:linear-gradient(90deg,#5F2132 0 30%,#A9824C 30% 70%,#5F2132 70% 100%); }
     .tab-tit{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#7C5D31; }
     .tab-area{ font-size:22px; font-weight:800; color:#3D1420; margin-top:2px; letter-spacing:-.01em; }
-    .tab-acc{ display:flex; gap:8px; }
+    .tab-acc{ display:flex; gap:8px; align-items:center; }
+    .tab-up{ max-width:min(46vw,360px); margin:0; padding:7px 34px 7px 12px; border-radius:999px; border:1.5px solid #E2D6BC; background:#fff; color:inherit; font:600 12.5px/1.2 inherit; cursor:pointer; text-overflow:ellipsis; }
+    .tab-up.activo{ border-color:#7A1F3D; color:#7A1F3D; }
+    @media (max-width:560px){ .tab-cab{ flex-wrap:wrap; } .tab-up{ max-width:100%; } }
     .tab-btn{ display:inline-grid; place-items:center; width:38px; height:38px; margin:0; padding:0; border-radius:50%; cursor:pointer;
       border:1px solid #E4D6C8; background:#fff; color:#5F2132; font-size:18px; }
     .tab-btn:hover{ background:#F6EEDD; }
@@ -352,6 +355,19 @@
     const m = montosDelContrato(p);
     return { autorizado: Number(m.vigente || 0), facturado: Number(m.facturado || 0), pagado: Number(m.pagado || 0), porFacturar: Number(m.porFacturar ?? Math.max(0, (m.vigente || 0) - (m.facturado || 0))) };
   }
+  let filtroUPTab = '';   // '' = todas las áreas; 'sin' = sin unidad; si no, número de UP
+  let datosTab = [];
+  function llenarSelectorUP() {
+    const sel = fondo && fondo.querySelector('.tab-up');
+    if (!sel) return;
+    const cuentas = {}; let sin = 0;
+    datosTab.forEach(p => { if (p.upNumero) cuentas[p.upNumero] = (cuentas[p.upNumero] || 0) + 1; else sin++; });
+    if (filtroUPTab && filtroUPTab !== 'sin' && !cuentas[filtroUPTab]) filtroUPTab = '';
+    const nombre = (n) => nombreUPBonito(n);
+    sel.innerHTML = `<option value="">Todas las áreas (${datosTab.length})</option>` + Object.keys(cuentas).sort().map(n => `<option value="${n}">UP ${n} · ${esc(nombre(n))} (${cuentas[n]})</option>`).join('') + (sin ? `<option value="sin">Sin unidad asignada (${sin})</option>` : '');
+    sel.value = filtroUPTab;
+    sel.classList.toggle('activo', !!filtroUPTab);
+  }
   async function cargar(recargar = false) {
     const cuerpo = fondo.querySelector('.tab-cuerpo');
     cuerpo.innerHTML = '<div class="tab-msg">Cargando el tablero…</div>';
@@ -359,12 +375,15 @@
       let lista = typeof pedidosCache !== 'undefined' ? pedidosCache : [];
       if ((recargar || !lista.length) && typeof StorePedidos !== 'undefined') lista = await StorePedidos.listar();
       if (!fondo) return;
+      datosTab = lista;
+      llenarSelectorUP();
+      if (filtroUPTab) lista = lista.filter(p => filtroUPTab === 'sin' ? !p.upNumero : p.upNumero === filtroUPTab);
       const totales = { total: lista.length };
       ESTADOS.forEach(e => totales[e.k] = lista.filter(p => p.estatus === e.k).length);
       const contratos = lista.map(p => ({ nombre: (p.noContrato ? 'No. ' + p.noContrato + ' · ' : '') + (p.proveedor || p.producto || 'Contrato ' + p.id), montos: resumir(p) }))
         .sort((a, b) => b.montos.autorizado - a.montos.autorizado);
       const montos = contratos.reduce((s, c) => { Object.keys(s).forEach(k => s[k] += c.montos[k]); return s; }, { autorizado: 0, facturado: 0, pagado: 0, porFacturar: 0 });
-      fondo.querySelector('.tab-area').textContent = 'Todos los contratos';
+      fondo.querySelector('.tab-area').textContent = !filtroUPTab ? 'Todos los contratos' : filtroUPTab === 'sin' ? 'Contratos sin unidad asignada' : 'UP ' + filtroUPTab + ' · ' + ((typeof CATALOGO_UP !== 'undefined' && CATALOGO_UP[filtroUPTab]) || '');
       pintar(cuerpo, { totales, contratos, montos });
     } catch (e) {
       if (fondo) cuerpo.innerHTML = `<div class="tab-msg">${esc(e.message)}</div>`;
@@ -379,6 +398,7 @@
         <div class="tab-cab">
           <div><div class="tab-tit">Tablero de contratos</div><div class="tab-area">…</div></div>
           <div class="tab-acc">
+            <select class="tab-up" aria-label="Filtrar por área (unidad presupuestal)" title="Filtrar por área"></select>
             <button type="button" class="tab-btn tab-actualizar" title="Actualizar" aria-label="Actualizar"><i class="ti ti-refresh"></i></button>
             <button type="button" class="tab-btn tab-cerrar" title="Cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>
           </div>
@@ -389,6 +409,7 @@
     fondo.addEventListener('pointerdown', (e) => { if (e.target === fondo) cerrar(); });
     fondo.querySelector('.tab-cerrar').onclick = cerrar;
     fondo.querySelector('.tab-actualizar').onclick = () => cargar(true);
+    fondo.querySelector('.tab-up').onchange = (e) => { filtroUPTab = e.target.value; cargar(); };
     document.addEventListener('keydown', teclas);
     fondo.querySelector('.tab-cerrar').focus();
     cargar();
