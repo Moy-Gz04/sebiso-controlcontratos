@@ -18,6 +18,23 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requiereAutenticacion } = require('../middleware/auth');
+
+const CATALOGO_UP = {
+  '01': 'SECRETARÍA DE BIENESTAR E INCLUSIÓN SOCIAL',
+  '04': 'DIRECCIÓN GENERAL DE FOMENTO ARTESANAL',
+  '05': 'SUBSECRETARÍA DE INCLUSIÓN Y DESARROLLO',
+  '06': 'DIRECCIÓN GENERAL DE OPERACIÓN Y LOGÍSTICA DE PROGRAMAS',
+  '07': 'DIRECCIÓN GENERAL DE ATENCIÓN AL MIGRANTE',
+  '08': 'DIRECCIÓN GENERAL DE ASISTENCIA, ATENCIÓN Y PROTECCIÓN',
+  '12': 'DIRECCIÓN GENERAL DE PROSPECTIVA PLANEACIÓN Y EVALUACIÓN DE LOS PROGRAMAS SOCIALES',
+  '13': 'SUBSECRETARÍA DE PARTICIPACIÓN SOCIAL Y FOMENTO ARTESANAL',
+  '14': 'DIRECCIÓN GENERAL DE INCLUSIÓN PARA LAS PERSONAS CON DISCAPACIDAD',
+  '15': 'SUBSECRETARÍA DE DESARROLLO SOCIAL Y HUMANO',
+  '16': 'DIRECCIÓN GENERAL DE SERVIDORES DEL PUEBLO'
+};
+// Unidad presupuestal: se guarda el número y su nombre oficial (del catálogo); un número que no está en el catálogo se ignora
+const upDe = (v) => { const n = String(v ?? '').trim().padStart(2, '0'); return CATALOGO_UP[n] ? [n, CATALOGO_UP[n]] : [null, null]; };
+
 const jwt = require('jsonwebtoken');
 const { driveConfigurado, subirADrive, enviarDesdeDrive, papeleraDrive } = require('../drive');
 
@@ -83,6 +100,8 @@ function pedidoAJson(row, oficios, archivos = [], facturas = [], autorizaciones 
     descripcion: row.descripcion,
     proveedor: row.proveedor,
     areaSolicitante: row.area_solicitante,
+    upNumero: row.up_numero,
+    upNombre: row.up_nombre,
     montoEstimado: Number(row.monto_estimado),
     fechaSolicitud: row.fecha_solicitud,
     fechaEntrega: row.fecha_entrega,
@@ -149,15 +168,16 @@ router.get('/', async (req, res) => {
 // ---------- Paso 1: crear pedido ----------
 
 router.post('/', async (req, res) => {
-  const { noContrato, producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud } = req.body;
+  const { noContrato, producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud, upNumero } = req.body;
+  const [upNum, upNom] = upDe(upNumero);
   if (!producto || cantidad === undefined || !fechaSolicitud) {
     return res.status(400).json({ ok: false, mensaje: 'Faltan datos del pedido (producto, cantidad, fecha)' });
   }
   try {
     const { rows } = await db.query(
-      `INSERT INTO pedidos (producto, cantidad, unidad_medida, descripcion, proveedor, area_solicitante, monto_estimado, fecha_solicitud, no_contrato)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud, (noContrato || '').trim() || null]
+      `INSERT INTO pedidos (producto, cantidad, unidad_medida, descripcion, proveedor, area_solicitante, monto_estimado, fecha_solicitud, no_contrato, up_numero, up_nombre)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud, (noContrato || '').trim() || null, upNum, upNom]
     );
     const pedido = await cargarPedidoCompleto(rows[0].id);
     res.status(201).json({ ok: true, pedido });
@@ -276,13 +296,14 @@ router.get('/:id/documento-:tipo', (req, res) => {
 
 router.put('/:id/datos', async (req, res) => {
   const id = Number(req.params.id);
-  const { noContrato, producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud } = req.body;
+  const { noContrato, producto, cantidad, unidadMedida, descripcion, proveedor, areaSolicitante, montoEstimado, fechaSolicitud, upNumero } = req.body;
+  const [upNum, upNom] = upDe(upNumero);
   try {
     const { rows } = await db.query(
       `UPDATE pedidos SET producto=$1, cantidad=$2, unidad_medida=$3, descripcion=$4, proveedor=$5,
-         area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8, no_contrato=$10
+         area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8, no_contrato=$10, up_numero=$11, up_nombre=$12
        WHERE id=$9 RETURNING id`,
-      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud, id, (noContrato || '').trim() || null]
+      [producto, cantidad, unidadMedida || null, descripcion || null, proveedor || null, areaSolicitante || null, montoEstimado || 0, fechaSolicitud, id, (noContrato || '').trim() || null, upNum, upNom]
     );
     if (rows.length === 0) return res.status(404).json({ ok: false, mensaje: 'Pedido no encontrado' });
     const pedido = await cargarPedidoCompleto(id);
@@ -836,9 +857,9 @@ router.put('/:id/editar-todo', async (req, res) => {
       const d = b.datos;
       await client.query(
         `UPDATE pedidos SET producto=$1, cantidad=$2, unidad_medida=$3, descripcion=$4, proveedor=$5,
-           area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8, no_contrato=$10 WHERE id=$9`,
+           area_solicitante=$6, monto_estimado=$7, fecha_solicitud=$8, no_contrato=$10, up_numero=$11, up_nombre=$12 WHERE id=$9`,
         [reqTexto(d.producto, 'el nombre del contrato (Datos del contrato)'), num(d.cantidad) || 1, texto(d.unidadMedida), texto(d.descripcion),
-         texto(d.proveedor), texto(d.areaSolicitante), num(d.montoEstimado) || 0, reqFecha(d.fechaSolicitud, 'Datos del contrato'), id, texto(d.noContrato)]);
+         texto(d.proveedor), texto(d.areaSolicitante), num(d.montoEstimado) || 0, reqFecha(d.fechaSolicitud, 'Datos del contrato'), id, texto(d.noContrato), ...upDe(d.upNumero)]);
     }
     // Oficios de autorización: "autorizaciones" = [{ id, noOficio, monto, fecha, reduccion: { montoEjercido, fecha } }]
     // (compatibilidad: "autorizacion" / "reduccion" sueltos cuando el contrato tiene un solo oficio)

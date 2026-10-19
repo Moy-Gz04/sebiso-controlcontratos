@@ -71,6 +71,7 @@ function adjuntarEventosPedidos() {
       form.unidadMedida.value = p.unidadMedida || '';
       form.proveedor.value = p.proveedor || '';
       form.areaSolicitante.value = p.areaSolicitante || '';
+      if (form.upNumero) form.upNumero.value = p.upNumero || '';
       form.descripcion.value = p.descripcion || '';
       form.montoEstimado.value = p.montoEstimado || '';
       formatearMontoInput(form.montoEstimado);

@@ -6,6 +6,9 @@
 // comparten la misma función de lectura.
 // =========================================================
 
+// Llena los selectores de unidad presupuestal de los formularios de alta y edición
+document.querySelectorAll('select[name="upNumero"]').forEach(s => { s.innerHTML = opcionesUP(); });
+
 function leerDatosPedidoDeFormulario(form) {
   return {
     noContrato: form.noContrato ? form.noContrato.value.trim() : '',
@@ -14,6 +17,7 @@ function leerDatosPedidoDeFormulario(form) {
     unidadMedida: form.unidadMedida.value.trim(),
     proveedor: form.proveedor.value.trim(),
     areaSolicitante: form.areaSolicitante.value.trim(),
+    upNumero: form.upNumero ? form.upNumero.value : '',
     descripcion: form.descripcion.value.trim(),
     montoEstimado: Number(form.montoEstimado.value || 0),
     fechaSolicitud: form.fechaSolicitud.value

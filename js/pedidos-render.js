@@ -171,7 +171,9 @@ function aplicarFiltrosPedidos() {
       (p.noContrato || '').replace(/\D/g, '').includes(texto.replace(/\D/g, '') || '\u0000') ||
       p.producto.toLowerCase().includes(texto) ||
       (p.proveedor || '').toLowerCase().includes(texto) ||
-      (p.areaSolicitante || '').toLowerCase().includes(texto)
+      (p.areaSolicitante || '').toLowerCase().includes(texto) ||
+      (p.upNumero || '').includes(texto) ||
+      (p.upNombre || '').toLowerCase().includes(texto)
     );
   }
   if (filtroEtapa) lista = lista.filter(p => p.estatus === filtroEtapa);
@@ -216,6 +218,7 @@ function renderTarjetaPedido(p, i) {
           <span class="tc-meta">
             <span><i class="ti ti-package"></i>${escaparHtml(p.cantidad)} ${escaparHtml(p.unidadMedida || '')}</span>
             <span><i class="ti ti-building-store"></i>${escaparHtml(p.proveedor || 'Sin proveedor')}</span>
+            ${p.upNumero ? `<span title="${escaparHtml(p.upNombre || '')}"><i class="ti ti-building-bank"></i>UP ${escaparHtml(p.upNumero)} · ${escaparHtml(p.upNombre || '')}</span>` : ''}
           </span>
         </span>
         <span class="tc-lado">
@@ -548,6 +551,7 @@ function renderEditarTodo(p) {
   partes.push(sec('ti-file-description', 'Datos del contrato', '', `
     ${fila(t('datos.noContrato', 'No. de contrato', p.noContrato, false), t('datos.producto', 'Producto o servicio', p.producto))}
     ${fila(t('datos.proveedor', 'Proveedor', p.proveedor, false), t('datos.areaSolicitante', 'Área solicitante', p.areaSolicitante, false))}
+    ${fila(`<label>Unidad presupuestal (UP)<select name="datos.upNumero">${opcionesUP(p.upNumero || '')}</select></label>`)}
     ${fila(`<label>Cantidad<input type="number" name="datos.cantidad" step="any" min="0" value="${v(p.cantidad)}" required></label>`, t('datos.unidadMedida', 'Unidad', p.unidadMedida, false), mo('datos.montoEstimado', 'Monto contratado', p.montoEstimado), fe('datos.fechaSolicitud', 'Fecha del contrato', p.fechaSolicitud))}
     <label>Descripción<textarea name="datos.descripcion" rows="3">${v(p.descripcion)}</textarea></label>
     ${dc('Contrato', 'contrato', p.contrato)}`));

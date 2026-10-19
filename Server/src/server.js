@@ -82,6 +82,10 @@ app.post('/api/login', async (req, res) => {
 
 // ---------- Preferencias de cada usuario (por ahora, las del asistente: encendido y color) ----------
 const { requiereAutenticacion } = require('./middleware/auth');
+// Unidad presupuestal (UP) de cada contrato: número y nombre
+db.query(`ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS up_numero VARCHAR(4), ADD COLUMN IF NOT EXISTS up_nombre TEXT`)
+  .catch(err => console.error('No se pudieron preparar las columnas de UP:', err.message));
+
 const tablaPreferencias = db.query(`CREATE TABLE IF NOT EXISTS usuario_preferencias (
   usuario_id INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
   asistente JSONB NOT NULL DEFAULT '{}'::jsonb,
