@@ -364,9 +364,9 @@
     datosTab.forEach(p => { if (p.upNumero) cuentas[p.upNumero] = (cuentas[p.upNumero] || 0) + 1; else sin++; });
     if (filtroUPTab && filtroUPTab !== 'sin' && !cuentas[filtroUPTab]) filtroUPTab = '';
     const nombre = (n) => nombreUPBonito(n);
-    sel.innerHTML = `<option value="">Todas las áreas (${datosTab.length})</option>` + Object.keys(cuentas).sort().map(n => `<option value="${n}">UP ${n} · ${esc(nombre(n))} (${cuentas[n]})</option>`).join('') + (sin ? `<option value="sin">Sin unidad asignada (${sin})</option>` : '');
+    sel.innerHTML = `<option value="" data-nombre="Todas las áreas" data-n="${datosTab.length}" data-icono="ti-layout-grid">Todas las áreas (${datosTab.length})</option>` + Object.keys(cuentas).sort().map(n => `<option value="${n}" data-num="${n}" data-nombre="${esc(nombre(n))}" data-n="${cuentas[n]}">UP ${n} · ${esc(nombre(n))} (${cuentas[n]})</option>`).join('') + (sin ? `<option value="sin" data-nombre="Sin unidad asignada" data-n="${sin}" data-icono="ti-circle-dashed">Sin unidad asignada (${sin})</option>` : '');
     sel.value = filtroUPTab;
-    sel.classList.toggle('activo', !!filtroUPTab);
+    if (typeof estilizarSelect === 'function') estilizarSelect(sel);
   }
   async function cargar(recargar = false) {
     const cuerpo = fondo.querySelector('.tab-cuerpo');

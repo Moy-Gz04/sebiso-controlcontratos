@@ -155,11 +155,11 @@ function renderFiltroUP() {
   pedidosCache.forEach(p => { if (p.upNumero) cuentas[p.upNumero] = (cuentas[p.upNumero] || 0) + 1; else sinUP++; });
   const nums = Object.keys(cuentas).sort();
   if (filtroUP && filtroUP !== 'sin' && !cuentas[filtroUP]) filtroUP = '';
-  sel.innerHTML = `<option value="">Todas las áreas (${pedidosCache.length})</option>` +
-    nums.map(n => `<option value="${n}">UP ${n} · ${escaparHtml(nombreUPBonito(n))} (${cuentas[n]})</option>`).join('') +
-    (sinUP ? `<option value="sin">Sin unidad asignada (${sinUP})</option>` : '');
+  sel.innerHTML = `<option value="" data-nombre="Todas las áreas" data-n="${pedidosCache.length}" data-icono="ti-layout-grid">Todas las áreas (${pedidosCache.length})</option>` +
+    nums.map(n => `<option value="${n}" data-num="${n}" data-nombre="${escaparHtml(nombreUPBonito(n))}" data-n="${cuentas[n]}">UP ${n} · ${escaparHtml(nombreUPBonito(n))} (${cuentas[n]})</option>`).join('') +
+    (sinUP ? `<option value="sin" data-nombre="Sin unidad asignada" data-n="${sinUP}" data-icono="ti-circle-dashed">Sin unidad asignada (${sinUP})</option>` : '');
   sel.value = filtroUP;
-  sel.classList.toggle('activo', !!filtroUP);
+  estilizarSelect(sel);
 }
 
 function renderFiltroEtapas() {

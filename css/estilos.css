@@ -615,11 +615,44 @@ tbody tr:last-child td { border-bottom: none; }
 .buscador { position: relative; }
 .buscador .ti { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--texto-tenue); font-size: 17px; pointer-events: none; }
 .buscador input { width: 100%; padding: 13px 16px 13px 44px; border-radius: 999px; background: #fff; }
-.filtro-up { position: relative; display: block; margin: 0; }
-.filtro-up .ti { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--texto-tenue); font-size: 17px; pointer-events: none; }
-.filtro-up select { width: 100%; margin: 0; padding: 12px 40px 12px 44px; border-radius: 999px; background-color: #fff; border: 1.5px solid var(--borde-fuerte); color: var(--texto); font-weight: 600; font-size: 13.5px; cursor: pointer; text-overflow: ellipsis; }
-.filtro-up select.activo { border-color: var(--guinda); color: var(--guinda); }
-.filtro-up select:focus-visible { outline: 2px solid var(--dorado); outline-offset: 2px; }
+/* ---- Selector de área (UP) y desplegable estilizado ---- */
+.filtro-up { display: block; margin: 0; }
+.sel-est { position: relative; display: block; }
+.sel-est-nativo { position: absolute !important; opacity: 0; pointer-events: none; width: 1px; height: 1px; margin: 0; padding: 0; border: 0; }
+.sel-est-boton {
+  display: flex; align-items: center; gap: 10px; width: 100%; margin: 0; padding: 8px 16px 8px 9px; text-align: left;
+  border-radius: 999px; border: 1.5px solid var(--borde-fuerte); background: #fff; color: var(--texto);
+  font: 600 13.5px/1.25 inherit; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.sel-est-boton:hover { border-color: var(--dorado); }
+.sel-est-boton:focus-visible, .sel-est-boton[aria-expanded="true"] { outline: none; border-color: var(--guinda); box-shadow: 0 0 0 3px rgba(107, 15, 43, .12); }
+.sel-est--activo .sel-est-boton { border-color: var(--guinda); background: #FBF4F6; }
+.sel-est-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-est-flecha { flex: none; color: var(--texto-suave); font-size: 16px; transition: transform .18s ease; }
+.sel-est-boton[aria-expanded="true"] .sel-est-flecha { transform: rotate(180deg); }
+.sel-est-num, .sel-est-ico {
+  flex: none; display: inline-grid; place-items: center; min-width: 30px; height: 26px; padding: 0 9px; border-radius: 999px;
+  background: var(--guinda); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums;
+}
+.sel-est-ico { background: var(--dorado-suave); color: var(--guinda); font-size: 15px; padding: 0; width: 30px; }
+.sel-est-n { flex: none; min-width: 24px; padding: 1px 8px; border-radius: 999px; background: var(--gris-fondo); color: var(--texto-suave); font-size: 11.5px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.sel-est-panel {
+  position: fixed; z-index: 13000; overflow-y: auto; padding: 6px; background: #fff; border: 1px solid var(--borde);
+  border-radius: 18px; box-shadow: var(--sombra-lg); animation: sel-est-entra .14s ease-out;
+}
+@keyframes sel-est-entra { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.sel-est-opcion { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; cursor: pointer; color: var(--texto); font-size: 13.5px; font-weight: 500; }
+.sel-est-opcion .sel-est-nombre { white-space: normal; line-height: 1.3; }
+.sel-est-opcion.sel-est-resaltada { background: #FBF4F6; }
+.sel-est-opcion.sel-est-elegida { background: var(--dorado-suave); font-weight: 700; color: var(--guinda-oscuro); }
+.sel-est-opcion.sel-est-elegida .sel-est-num { background: var(--guinda-oscuro); }
+.sel-est-check { flex: none; width: 16px; color: var(--guinda); font-size: 16px; visibility: hidden; }
+.sel-est-opcion.sel-est-elegida .sel-est-check { visibility: visible; }
+.sel-est--tab-up { max-width: min(46vw, 380px); }
+.sel-est--tab-up .sel-est-boton { padding: 5px 12px 5px 6px; font-size: 12.5px; }
+.sel-est--tab-up .sel-est-num, .sel-est--tab-up .sel-est-ico { height: 22px; min-width: 26px; font-size: 11px; }
+@media (max-width: 560px) { .sel-est--tab-up { max-width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .sel-est-panel { animation: none; } .sel-est-flecha { transition: none; } }
 .filtro-etapas { display: flex; gap: 8px; flex-wrap: wrap; }
 .etapa-pill {
   display: inline-flex; align-items: center; gap: 8px; padding: 7px 8px 7px 14px; border-radius: 999px;

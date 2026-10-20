@@ -24,4 +24,4 @@ const CATALOGO_UP = {
 const opcionesUP = (sel = '') => '<option value="">Sin asignar</option>' + Object.entries(CATALOGO_UP).map(([n, nombre]) => `<option value="${n}"${n === sel ? ' selected' : ''}>${n} · ${nombre}</option>`).join('');
 
 // Nombre de UP en minúsculas con inicial mayúscula (sin capitalizar de, del, la, y, e…)
-const nombreUPBonito = (n) => String((typeof CATALOGO_UP !== 'undefined' && CATALOGO_UP[n]) || '').toLowerCase().split(' ').map((w, i) => (i > 0 && ['de', 'del', 'la', 'las', 'los', 'y', 'e', 'en', 'para', 'al'].includes(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+const nombreUPBonito = (n) => String((typeof CATALOGO_UP !== 'undefined' && CATALOGO_UP[n]) || '').toLowerCase().split(' ').map((w, i) => (i > 0 && ['de', 'del', 'la', 'las', 'los', 'y', 'e', 'en', 'para', 'al', 'con'].includes(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
